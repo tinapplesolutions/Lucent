@@ -96,6 +96,15 @@ h1.big{margin:0;font-family:var(--serif);font-weight:500;font-size:40px;line-hei
 .sense .d{font-size:15px;line-height:1.5}
 .sense .x{font-family:var(--serif);font-style:italic;font-size:17px;line-height:1.4;color:var(--ink2);margin-top:2px}
 .sense .p{font-size:10.5px;font-weight:600;letter-spacing:1.6px;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
+.plain{margin-top:20px;background:var(--paper);border:1px solid var(--line2);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--card-sh)}
+.plain .pm{font-family:var(--serif);font-size:22px;line-height:1.35;font-weight:500}
+.plain .x{font-family:var(--serif);font-style:italic;font-size:17px;line-height:1.4;color:var(--ink2)}
+.plain .by{font-size:10.5px;letter-spacing:.6px;color:var(--muted)}
+details.more{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+details.more summary{font-size:11px;font-weight:600;letter-spacing:2px;color:var(--muted);text-transform:uppercase;cursor:pointer;list-style:none;min-height:32px;display:flex;align-items:center}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::after{content:'+';margin-left:8px;font-size:15px}
+details.more[open] summary::after{content:'–'}
 .origin{background:var(--soft);padding:14px 16px;border-radius:6px;display:flex;flex-direction:column;gap:6px}
 html[data-theme="night"] .origin{border:1px solid var(--line)}
 .origin .t{font-family:var(--serif);font-size:17px;line-height:1.4}
@@ -216,6 +225,9 @@ html[data-theme="night"] .ex .num{color:#C7CCD1}
 .opt.ok{border-color:#2F6B4F;background:rgba(47,107,79,.1)}
 .opt.no{border-color:#9E3443;background:rgba(158,52,67,.1)}
 .opt.serifopt{font-family:var(--serif);font-size:22px}
+.timer{height:4px;border-radius:2px;background:var(--line);margin-top:12px;overflow:hidden}
+.timer i{display:block;height:100%;width:100%;background:var(--acc);border-radius:2px;transition:width .1s linear,background .3s}
+.timer i.low{background:#B25463}
 .progress{height:3px;border-radius:2px;background:var(--line)}
 .progress i{display:block;height:3px;border-radius:2px;background:var(--acc);transition:width .3s}
 .qword{font-family:var(--serif);font-size:52px;font-weight:500;line-height:1.02;text-align:center;word-break:break-word}
@@ -305,6 +317,7 @@ html[data-theme="night"] .ex .num{color:#C7CCD1}
   </nav>
 </div>
 <script src="content.js"></script>
+<script src="plain.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

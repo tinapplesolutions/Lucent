@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const WHATS_NEW = [
+  { v: '1.2.0', title: 'Clearer meanings', notes: ['A bigger dictionary: Wiktionary’s clearer meanings now sit alongside the old ones, which you can still open under “More meanings.”', 'Plain meanings: the first 400 words now have a simple-English meaning and example, written for Lucent. More arrive in future updates.', 'Many more words now have a confirmed pronunciation instead of an estimate (≈), and richer word origins.', 'New in Lexis: Synonym match — find the word that means the same, against a 10- or 5-second clock.', 'The dictionary refreshes once in the background (about 13 MB).'] },
   { v: '1.1.0', title: 'Cards you can hold', notes: ['Treasury cards now move like real cards: each one follows your finger, tilts, and settles into place.', 'Every word now shows its synonyms and its opposites (antonyms), below “Close in meaning.”', 'Meanings are now ordered by how commonly each is used.', 'The dictionary refreshes once in the background (about 9 MB) to add the new opposites.'] },
   { v: '1.0.1', title: 'Installing fixed', notes: ['Lucent now installs as its own app on your phone, separate from Manna.'] },
   { v: '1.0.0', title: 'Welcome to Lucent', notes: ['Your Treasury, Lexis practice, Word Lore and the full offline dictionary are ready.', 'Pronunciations marked ≈ are estimates; they are confirmed the first time you open the word while online.'] }
@@ -203,6 +204,7 @@ function pronOf(w, e) {
 
 /* ---------- origin ---------- */
 function originText(w, e) {
+  if (e && e.et) return { html: esc(e.et).replace(/\b(Latin|Greek|French|German|Italian|Spanish|English|Norse|Dutch|Arabic|Persian|Sanskrit|Hebrew)\b ([^\s,.(“]+)/g, '$1 <i>$2</i>'), src: 'wiktionary' };
   const x = enr[(w || '').toLowerCase()];
   if (x && x.origin) return { html: esc(x.origin), src: 'online' };
   if (!e || !e.o || !e.o.length) return null;
@@ -342,10 +344,19 @@ function sensesHTML(e) {
     n++;
     const head = s[0] !== lastPos ? `<div class="p">${esc(s[0])}</div>` : ''; lastPos = s[0];
     const ex = (s[2] || []).slice(0, 1).map(x => `<div class="x">“${esc(x)}”</div>`).join('');
-    return `<div class="sense"><div class="n">${n}</div><div class="stack">${head}<div class="d">${esc(cap(s[1]))}.</div>${ex}</div></div>`;
+    return `<div class="sense"><div class="n">${n}</div><div class="stack">${head}<div class="d">${esc(endDot(s[1]))}</div>${ex}</div></div>`;
   }).join('');
 }
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const endDot = s => { s = cap(String(s || '').trim()); return /[.!?…)”"]$/.test(s) ? s : s + '.'; };
+const plainOf = w => (LX.PLAIN && LX.PLAIN[(w || '').toLowerCase()]) || null;
+/* one short, easy meaning: Lucent's plain meaning when written, else the first dictionary sense */
+function shortDef(w, e) {
+  const p = plainOf(w); if (p) return p[0];
+  if (!e || !e.s || !e.s[0]) return '';
+  let d = e.s[0][1].split('; ')[0].replace(/^\([^)]*\)\s*/, '');
+  return endDot(d.replace(/[.;,:]$/, ''));
+}
 function pronHTML(w, e) {
   const p = pronOf(w, e);
   if (!p) return `<div class="pron"><b class="muted" style="font-size:14px">Pronunciation not available offline</b><span>${navigator.onLine ? 'Checking online…' : 'Connect once to fetch it'}</span></div>`;
@@ -354,7 +365,8 @@ function pronHTML(w, e) {
 async function openWord(q) {
   const el = overlay('', '<div class="hint" style="margin-top:40vh">Opening…</div>');
   const body = el.querySelector('.ov-body');
-  const [w, e] = await Dict.lookup(q);
+  let [w, e] = await Dict.lookup(q);
+  if (!e && plainOf(q)) { w = q.trim().toLowerCase(); e = { s: [] }; }
   if (!e) { body.innerHTML = `<div class="sec"><h1 class="wp-word">${esc(q)}</h1><p class="muted">This word isn’t in the dictionary yet. Check the spelling, or try its plain form.</p></div>`; return; }
   const draw = () => {
     const o = originText(w, e);
@@ -364,12 +376,13 @@ async function openWord(q) {
     const kept = inT(w);
     body.innerHTML = `
       <section class="stack" style="gap:6px">
-        <div class="wp-pos">${esc(e.s[0][0])}</div>
+        <div class="wp-pos">${esc(e.s[0] ? e.s[0][0] : '')}</div>
         <h1 class="wp-word">${esc(w)}</h1>
         <div class="row" style="margin-top:10px"><button class="speak" id="sp" aria-label="Hear it pronounced">${ICON.speak}</button>${pronHTML(w, e)}</div>
       </section>
-      <div class="hr" style="margin:20px 0"></div>
-      <section class="stack" style="gap:14px">${sensesHTML(e)}</section>
+      ${plainOf(w) ? `<section class="plain"><div class="micro" style="color:var(--acc)">Plain meaning</div><div class="pm">${esc(plainOf(w)[0])}</div><div class="x">“${esc(plainOf(w)[1])}”</div><div class="by">Written in simple English for Lucent</div></section>` : '<div class="hr" style="margin:20px 0"></div>'}
+      ${e.s.length ? `${plainOf(w) ? '<div class="micro" style="margin:22px 0 12px">Dictionary meanings</div>' : ''}<section class="stack" style="gap:14px">${sensesHTML(e)}</section>` : ''}
+      ${e.m && e.m.length ? `<details class="more"><summary>More meanings (${e.m.length})</summary><div class="stack" style="gap:10px;margin-top:12px">${e.m.map(s => `<div style="font-size:14px;line-height:1.5"><i class="muted">${esc(s[0])}</i> — ${esc(endDot(s[1]))}</div>`).join('')}</div></details>` : ''}
       ${o ? `<section class="origin" style="margin-top:20px"><div class="micro" style="color:var(--acc)">Origin</div><div class="t">${o.html}</div></section>` : ''}
       ${chips('Close in meaning', sim)}
       ${chips('Synonyms', syn)}
@@ -421,7 +434,7 @@ function wordSize(w, big) {
 function cardHTML(w, e, rec, h = 450) {
   const li = lvlIdx(rec ? rec.c : 0), L = LX.CARD_LEVELS[li].n;
   const s = e && e.s ? e.s[0] : null, p = pronOf(w, e);
-  const def = s ? cap(s[1].split(';')[0]) + '.' : '';
+  const def = shortDef(w, e);
   const os = originShort(e, w);
   const big = h >= 380;
   if (li === 4) {
@@ -557,7 +570,8 @@ async function openFull(words, i) {
           <div class="row" style="justify-content:space-between"><h3>${esc(w)}</h3><button class="speak" style="border-color:#1C1A17;color:#1C1A17" id="fsp" aria-label="Hear it">${ICON.speak}</button></div>
           <div><div class="k">${esc(LX.CARD_LEVELS[li].n)}${nxt ? ' · ' + (nxt.at - rec.c) + ' more correct to ' + nxt.n : ' · highest level'}</div><div class="bar"><i style="width:${Math.max(4, prog)}%"></i></div></div>
           <div class="grid3"><div class="stat"><b>${rec.c}</b><span>correct</span></div><div class="stat"><b>${rec.m}</b><span>missed</span></div><div class="stat"><b>${acc}</b><span>accuracy</span></div></div>
-          ${e ? `<div><div class="k">All meanings</div><div class="v">${e.s.slice(0, 4).map((s, k) => `${k + 1}. <i>${esc(s[0])}</i> — ${esc(s[1])}`).join('<br>')}</div></div>` : ''}
+          ${plainOf(w) ? `<div><div class="k">Plain meaning</div><div class="v serif" style="font-size:18px;line-height:1.35">${esc(plainOf(w)[0])}</div><div class="v serif it" style="font-size:16px;color:#4A443C;margin-top:4px">“${esc(plainOf(w)[1])}”</div></div>` : ''}
+          ${e && e.s.length ? `<div><div class="k">${plainOf(w) ? 'Dictionary meanings' : 'All meanings'}</div><div class="v">${e.s.slice(0, 4).map((s, k) => `${k + 1}. <i>${esc(s[0])}</i> — ${esc(endDot(s[1]))}`).join('<br>')}</div></div>` : ''}
           ${o ? `<div><div class="k">Origin</div><div class="v serif" style="font-size:16px">${o.html}</div></div>` : ''}
           ${fam.length ? `<div><div class="k">Same root</div><div class="v">${fam.map(esc).join(' · ')}</div></div>` : ''}
           ${syn.length ? `<div><div class="k">Synonyms</div><div class="v">${syn.map(esc).join(' · ')}</div></div>` : ''}
@@ -637,8 +651,14 @@ async function pickNew(n, seed) {
     const syn = shuffle([...new Set(e.s.flatMap(s => s[3] || []))].filter(x => /^[a-z]+$/.test(x) && Pool.map.has(x) && !ex.has(x)), r);
     if (syn.length && add(syn[0], `Close to <b>${esc(w)}</b>`)) break;
   }
-  // 3) suited to palate and level
+  // 3) words with Lucent plain meanings, near your level
   const top = axisOrder().slice(0, 2);
+  {
+    const lo2 = Math.max(35, ta - 10), hi2 = Math.min(70, tb + 10);
+    const pw = shuffle(Object.keys(LX.PLAIN || {}).filter(w => !ex.has(w) && !used.has(w) && (!Pool.map.has(w) || (Pool.map.get(w)[1] >= lo2 && Pool.map.get(w)[1] <= hi2))), r);
+    const fit = pw.filter(w => { const x = Pool.map.get(w); return x && top.some(t => x[2].includes(t)); });
+    for (const w of fit.concat(pw)) { if (picks.length >= n) break; add(w, 'Suited to your palate'); }
+  }
   const lo = ornate ? ta : Math.max(35, ta - 5), hi = ornate ? Math.min(70, tb + 5) : tb;
   const cand = Pool.data.words.filter(x => x[1] >= lo && x[1] <= hi && !ex.has(x[0]) && !used.has(x[0]));
   const fav = cand.filter(x => top.some(t => x[2].includes(t)));
@@ -680,7 +700,7 @@ async function renderToday() {
       <div class="card f${Math.min(li, 3)}" style="padding:18px 18px 16px 20px;gap:8px;box-shadow:var(--card-sh)" id="wcard"><div class="row" style="justify-content:space-between;align-items:flex-start">
         <div class="stack" style="gap:4px"><div class="lv">${LX.CARD_LEVELS[li].n}${s ? ' · ' + esc(s[0]) : ''}</div><div class="w" style="font-size:${Math.min(40, wordSize(wd, true))}px">${esc(wd)}</div>${p ? `<div class="pr" style="font-size:13px">${esc(p.r || '')}${p.est ? ' ≈' : ''}</div>` : ''}</div>
         <button class="speak" id="wsp" style="border-color:currentColor;color:inherit" aria-label="Hear it pronounced">${ICON.speak}</button></div>
-        ${s ? `<div style="font-size:14px;line-height:1.5;margin-top:8px">${esc(cap(s[1].split(';')[0]))}.</div>` : ''}</div></section>`;
+        ${s ? `<div style="font-size:14px;line-height:1.5;margin-top:8px">${esc(shortDef(wd, e))}</div>` : ''}</div></section>`;
     $('#wsp').onclick = ev => { ev.stopPropagation(); speak(wd); };
     $('#wcard').onclick = () => openWord(wd);
   } else {
@@ -698,7 +718,7 @@ async function renderDeck(plan) {
   const e = await Dict.get(cur.w), p = pronOf(cur.w, e), s = e ? e.s[0] : null;
   box.innerHTML = `<section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Today’s new words</div><div class="muted" style="font-size:12px">${plan.i + 1} of ${plan.news.length}</div></div>
     <div class="deck">${plan.i < plan.news.length - 2 ? '<div class="l2"></div>' : ''}${plan.i < plan.news.length - 1 ? '<div class="l1"></div>' : ''}
-      <button class="top" id="dtop"><div class="why">${cur.why}</div><div class="stack" style="gap:4px"><div class="serif" style="font-size:${Math.min(36, wordSize(cur.w, true))}px;font-weight:500;line-height:1">${esc(cur.w)}</div>${p ? `<div class="muted" style="font-size:13px">${esc(p.r || '')}${p.est ? ' ≈' : ''}</div>` : ''}</div><div style="font-size:14px;line-height:1.45">${s ? esc(cap(s[1].split(';')[0])) + '.' : ''}</div></button></div>
+      <button class="top" id="dtop"><div class="why">${cur.why}</div><div class="stack" style="gap:4px"><div class="serif" style="font-size:${Math.min(36, wordSize(cur.w, true))}px;font-weight:500;line-height:1">${esc(cur.w)}</div>${p ? `<div class="muted" style="font-size:13px">${esc(p.r || '')}${p.est ? ' ≈' : ''}</div>` : ''}</div><div style="font-size:14px;line-height:1.45">${esc(shortDef(cur.w, e))}</div></button></div>
     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px"><button class="btn ghost" id="dPass" style="height:48px">Pass</button><button class="btn" id="dKeep" style="height:48px">Keep</button></div></section>`;
   const next = (kept) => {
     const top = $('#dtop'); top.style.transform = `translateX(${kept ? 120 : -120}%) rotate(${kept ? 8 : -8}deg)`; top.style.opacity = 0;
@@ -730,16 +750,17 @@ const EXERCISES = [
   { id: 'reverse', n: 'Reverse', d: 'See the meaning, choose the word.' },
   { id: 'blank', n: 'Fill the blank', d: 'Complete the sentence.' },
   { id: 'spell', n: 'Hear & spell', d: 'Listen, then write it.' },
-  { id: 'sentence', n: 'Your own sentence', d: 'Use the word yourself. Saved to its card.' }
+  { id: 'sentence', n: 'Your own sentence', d: 'Use the word yourself. Saved to its card.' },
+  { id: 'synonym', n: 'Synonym match', d: 'Find the word that means the same — against the clock.' }
 ];
 function renderLexis() {
   const n = Object.keys(treasury).length;
   view.innerHTML = `<h1 class="big">Lexis</h1><p class="serif it muted" style="font-size:17px;margin:6px 0 0">The best way to remember a word is to use it.</p>
     <div class="row" style="gap:10px;margin-top:18px"><span class="chip">${n} in Treasury</span><span class="chip">${streak() ? streak() + '-day streak' : 'No streak yet'}</span></div>
-    <div class="stack" style="gap:10px;margin-top:20px">${EXERCISES.map((x, i) => `<button class="ex" data-x="${x.id}"><span class="num">${['i', 'ii', 'iii', 'iv', 'v'][i]}</span><span class="stack"><b>${x.n}</b><span>${x.d}</span></span></button>`).join('')}</div>
+    <div class="stack" style="gap:10px;margin-top:20px">${EXERCISES.map((x, i) => `<button class="ex" data-x="${x.id}"><span class="num">${['i', 'ii', 'iii', 'iv', 'v', 'vi'][i]}</span><span class="stack"><b>${x.n}</b><span>${x.d}</span></span></button>`).join('')}</div>
     ${n < 1 ? '<p class="muted" style="font-size:13px;margin-top:16px">Keep at least one word in your Treasury to begin.</p>' : ''}
-    <p class="muted" style="font-size:12px;margin-top:18px;line-height:1.5">Each correct answer in exercises i–iv raises that word’s card. Cards level up at 3, 8, 15 and 30 correct answers.</p>`;
-  $$('.ex').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } startEx(b.dataset.x); });
+    <p class="muted" style="font-size:12px;margin-top:18px;line-height:1.5">Each correct answer in exercises i–iv and vi raises that word’s card. Cards level up at 3, 8, 15 and 30 correct answers.</p>`;
+  $$('.ex').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } b.dataset.x === 'synonym' ? synonymSetup() : startEx(b.dataset.x); });
 }
 function pickForPractice(k, needEx) {
   const now = Date.now();
@@ -750,11 +771,17 @@ function pickForPractice(k, needEx) {
 }
 async function distractorDefs(k, avoid) {
   const out = [];
+  if (plainOf(avoid)) {
+    const keys = shuffle(Object.keys(LX.PLAIN).filter(w => w !== avoid));
+    const tk = Object.keys(treasury).filter(w => w !== avoid && plainOf(w));
+    for (const w of shuffle(tk).concat(keys)) { if (out.length >= k) break; const d = LX.PLAIN[w][0].replace(/\.$/, ''); if (!out.includes(d)) out.push(d); }
+    return out;
+  }
   const others = shuffle(Object.keys(treasury).filter(w => w !== avoid));
-  for (const w of others) { if (out.length >= k) break; const e = await Dict.get(w); if (e) out.push(cap(e.s[0][1].split(';')[0])); }
+  for (const w of others) { if (out.length >= k) break; if (plainOf(w)) continue; const e = await Dict.get(w); if (e) out.push(shortDef(w, e).replace(/\.$/, '')); }
   if (out.length < k) {
     await Pool.load(); let g = 0;
-    while (out.length < k && g++ < 30) { const x = Pool.data.words[Math.floor(Math.random() * Pool.data.words.length)][0]; const e = await Dict.get(x); if (e) out.push(cap(e.s[0][1].split(';')[0])); }
+    while (out.length < k && g++ < 30) { const x = Pool.data.words[Math.floor(Math.random() * Pool.data.words.length)][0]; if (plainOf(x)) continue; const e = await Dict.get(x); if (e) out.push(shortDef(x, e).replace(/\.$/, '')); }
   }
   return out;
 }
@@ -789,7 +816,8 @@ async function startEx(id) {
     const e = await Dict.get(w); if (!e) continue;
     if (id === 'blank') {
       const re = new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\w*', 'i');
-      const own = (treasury[w].sent || []).find(s => re.test(s));
+      const pl = plainOf(w);
+      const own = (treasury[w].sent || []).find(s => re.test(s)) || (pl && re.test(pl[1]) ? pl[1] : null);
       const ex = own || e.s.flatMap(s => s[2] || []).find(s => re.test(s));
       if (!ex) continue;
       qs.push({ w, e, sentence: ex.replace(re, '_____') });
@@ -816,7 +844,7 @@ async function startEx(id) {
     });
   };
   const ask = async () => {
-    const q = qs[qi], def = cap(q.e.s[0][1].split(';')[0]);
+    const q = qs[qi], def = shortDef(q.w, q.e).replace(/\.$/, '');
     if (id === 'meaning') {
       const ds = await distractorDefs(3, q.w);
       const p = pronOf(q.w, q.e);
@@ -860,6 +888,86 @@ async function startEx(id) {
   ask();
 }
 
+/* ---------- synonym match (timed) ---------- */
+const oneWord = x => /^[a-z][a-z-]{2,}$/.test(x);
+function synsOf(e, w) {
+  if (!e || !e.s) return [];
+  return [...new Set(e.s.slice(0, 3).flatMap(s => s[3] || []))].filter(x => oneWord(x) && x !== w && !x.includes(w) && !w.includes(x));
+}
+function synonymSetup() {
+  const t = settings.synTimer || 10;
+  const el = overlay('Synonym match', `<div class="stack" style="gap:18px;margin-top:30px">
+    <h1 class="big" style="font-size:36px">Synonym match</h1>
+    <p class="muted" style="font-size:15px;line-height:1.5;margin:0">One of your Treasury words appears with four choices. Tap the word that means the same before time runs out.</p>
+    <div class="micro" style="margin-top:8px">Time per word</div>
+    <div class="seg" id="tsel" style="align-self:flex-start">${[10, 5].map(s => `<button data-s="${s}" class="${t === s ? 'on' : ''}" style="padding:10px 22px;font-size:15px">${s} seconds</button>`).join('')}</div>
+    <div style="height:10px"></div><button class="btn" id="go">Begin</button></div>`);
+  $$('#tsel button', el).forEach(b => b.onclick = () => { settings.synTimer = +b.dataset.s; save.settings(); $$('#tsel button', el).forEach(x => x.classList.toggle('on', x === b)); });
+  $('#go', el).onclick = () => { closeTop(); setTimeout(() => synonymGame(settings.synTimer || 10), 60); };
+}
+async function synonymGame(secs) {
+  const el = overlay('Synonym match', '<div class="hint" style="margin-top:40vh">Preparing…</div>');
+  const body = $('.ov-body', el);
+  await Pool.load();
+  const qs = [];
+  for (const w of pickForPractice(12)) {
+    const e = await Dict.get(w); const syn = synsOf(e, w);
+    if (!syn.length) continue;
+    // prefer synonyms that point back to this word (the strongest matches)
+    const mutual = [];
+    for (const s of syn.slice(0, 6)) { const se = await Dict.get(s); if (se && synsOf(se, s).includes(w)) mutual.push(s); }
+    const pickFrom = mutual.length ? mutual : syn.slice(0, 2);
+    const answer = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+    // distractors: synonyms of other Treasury words, then words near the same level; never a synonym of this word
+    const banned = new Set([w, ...syn, ...(e.s || []).flatMap(s => s[4] || [])]);
+    const opts = new Set();
+    for (const o of shuffle(Object.keys(treasury).filter(x => x !== w))) {
+      if (opts.size >= 3) break; const oe = await Dict.get(o); const os = synsOf(oe, o).filter(x => !banned.has(x));
+      if (os.length) opts.add(os[Math.floor(Math.random() * os.length)]);
+    }
+    const tier = (Pool.map.get(w) || [0, 50])[1];
+    const near = Pool.data.words.filter(x => Math.abs(x[1] - tier) <= 10 && !banned.has(x[0]));
+    let g = 0; while (opts.size < 3 && g++ < 80) opts.add(near[Math.floor(Math.random() * near.length)][0]);
+    qs.push({ w, e, answer, options: shuffle([answer, ...[...opts].slice(0, 3)]) });
+    if (qs.length >= 10) break;
+  }
+  if (!qs.length) { body.innerHTML = `<p class="serif" style="font-size:20px;margin-top:30px">None of your Treasury words has a synonym listed yet.</p><p class="muted">Keep a few more words and try again.</p>`; return; }
+  let qi = 0, right = 0, timer = null, alive = true;
+  el.addEventListener('remove', () => alive = false);
+  const stop = () => { clearInterval(timer); timer = null; };
+  const finish = () => {
+    stop();
+    body.innerHTML = `<div class="stack" style="gap:14px;margin-top:30px;text-align:center"><div class="micro">Session complete · ${secs} seconds each</div><div class="serif" style="font-size:64px;line-height:1">${right}<span class="muted" style="font-size:32px"> / ${qs.length}</span></div><p class="muted">${right === qs.length ? 'Flawless — and fast.' : right >= qs.length * .7 ? 'Quick and sharp.' : 'Speed comes with practice.'}</p><button class="btn" id="again">Another round</button><button class="btn ghost" id="done">Done</button></div>`;
+    $('#done', body).onclick = () => closeTop();
+    $('#again', body).onclick = () => { closeTop(); setTimeout(() => synonymGame(secs), 60); };
+  };
+  const ask = () => {
+    if (!document.body.contains(el)) { stop(); return; }
+    const q = qs[qi]; const p = pronOf(q.w, q.e);
+    body.innerHTML = `<div class="row" style="justify-content:space-between;margin-top:6px"><div class="micro">${qi + 1} / ${qs.length}</div><div class="micro">${right} correct</div></div>
+      <div class="timer"><i id="tbar"></i></div><div class="row" style="justify-content:flex-end"><span class="micro" id="tleft">${secs}s</span></div>
+      <div class="stack" style="gap:22px;margin-top:20px"><div class="stack" style="align-items:center;gap:8px"><div class="muted" style="font-size:14px">Which word means the same?</div><div class="qword">${esc(q.w)}</div>${p ? `<div class="muted" style="font-size:14px">${esc(p.r || '')}</div>` : ''}</div>
+      <div class="stack" style="gap:10px" id="opts">${q.options.map((o, k) => `<button class="opt serifopt" data-k="${k}"><span class="key">${'ABCD'[k]}</span><span>${esc(o)}</span></button>`).join('')}</div><div class="feedback" id="fb"></div></div>`;
+    const t0 = Date.now(); let done = false;
+    const settle = ok => {
+      if (done) return; done = true; stop();
+      $$('#opts .opt', body).forEach(x => { if (q.options[+x.dataset.k] === q.answer) x.classList.add('ok'); });
+      recordAnswer(q.w, ok); if (ok) right++;
+      setTimeout(() => { qi++; qi < qs.length ? ask() : finish(); }, ok ? 650 : 1500);
+    };
+    stop();
+    timer = setInterval(() => {
+      if (!document.body.contains(el)) { stop(); return; }
+      const left = Math.max(0, secs - (Date.now() - t0) / 1000);
+      const bar = $('#tbar', body); if (bar) { bar.style.width = (left / secs * 100) + '%'; bar.classList.toggle('low', left < secs * 0.3); }
+      const tl = $('#tleft', body); if (tl) tl.textContent = Math.ceil(left) + 's';
+      if (left <= 0) { $('#fb', body).textContent = 'Time’s up.'; settle(false); }
+    }, 100);
+    $$('#opts .opt', body).forEach(b => b.onclick = () => { if (done) return; const ok = q.options[+b.dataset.k] === q.answer; if (!ok) b.classList.add('no'); settle(ok); });
+  };
+  ask();
+}
+
 /* ---------- profile ---------- */
 function avatarHTML(size) {
   const n = (profile && profile.name || '?').trim();
@@ -870,7 +978,7 @@ function renderProfile() {
   const rk = rankOf(), tw = Object.values(treasury);
   const counts = [0, 0, 0, 0, 0]; tw.forEach(r => counts[lvlIdx(r.c)]++);
   const acc = stats.ok + stats.bad ? Math.round(stats.ok / (stats.ok + stats.bad) * 100) + '%' : '—';
-  const off = store.get('offline2', { done: 0, total: 0 });
+  const off = store.get('offline3', { done: 0, total: 0 });
   view.innerHTML = `
     <section class="row" style="gap:16px">${avatarHTML(72)}<div class="stack" style="gap:2px;min-width:0"><div class="serif" style="font-size:32px;font-weight:500;line-height:1.05;overflow:hidden;text-overflow:ellipsis">${esc(profile.name)}</div>
       <div class="serif it" style="font-size:16px;color:var(--acc)">${rk.name} · rank ${rk.i + 1} of 5</div></div>
@@ -894,7 +1002,7 @@ function renderProfile() {
   $('#edit').onclick = editProfile;
   const pal = $('#pal'); if (pal) pal.onclick = () => showPalate(profile.palate, false);
   $$('#theme button').forEach(b => b.onclick = () => { settings.theme = b.dataset.t; save.settings(); applyTheme(); renderProfile(); });
-  $('#offl').onclick = () => { const o = store.get('offline2', {}); if (o.total && o.done >= o.total) toast('The whole dictionary is saved on this phone.'); else { startOfflineDownload(true); toast('Saving the dictionary for offline use…'); } };
+  $('#offl').onclick = () => { const o = store.get('offline3', {}); if (o.total && o.done >= o.total) toast('The whole dictionary is saved on this phone.'); else { startOfflineDownload(true); toast('Saving the dictionary for offline use…'); } };
   $('#bk').onclick = backup;
   $('#rs').onclick = () => $('#rsf').click();
   $('#rsf').onchange = restore;
@@ -1098,21 +1206,21 @@ function showPalate(p, inFlow, host, next) {
 /* ---------- offline download + updates ---------- */
 async function startOfflineDownload(force) {
   if (!('serviceWorker' in navigator)) return;
-  const o = store.get('offline2', { done: 0, total: 0 });
+  const o = store.get('offline3', { done: 0, total: 0 });
   if (o.total && o.done >= o.total && !force) return;
   try {
     const idx = await Dict.index();
     const urls = ['data/words.json', 'data/pool.json', 'data/dict/index.json', ...idx.map(x => 'data/dict/' + x[1])];
     const reg = await navigator.serviceWorker.ready;
-    store.set('offline2', { done: o.done || 0, total: urls.length });
-    reg.active && reg.active.postMessage({ type: 'download', key: 'dict', urls, cache: 'lucent-dict-v2' });
+    store.set('offline3', { done: o.done || 0, total: urls.length });
+    reg.active && reg.active.postMessage({ type: 'download', key: 'dict', urls, cache: 'lucent-dict-v3' });
   } catch { }
 }
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', ev => {
     const m = ev.data || {};
     if (m.type === 'dl-progress' || m.type === 'dl-done') {
-      const o = store.get('offline2', { total: 0 }); o.done = m.done; if (m.type === 'dl-done' && !m.ok) o.retry = 1; store.set('offline2', o);
+      const o = store.get('offline3', { total: 0 }); o.done = m.done; if (m.type === 'dl-done' && !m.ok) o.retry = 1; store.set('offline3', o);
       const st = $('#offst'); if (st) st.textContent = offlineLabel(o);
     }
   });
