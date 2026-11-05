@@ -139,6 +139,12 @@ html[data-theme="night"] .origin{border:1px solid var(--line)}
 .shine{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at var(--sx,30%) var(--sy,20%),rgba(255,255,255,.28),rgba(255,255,255,0) 45%);mix-blend-mode:soft-light;opacity:.9;border-radius:inherit}
 .f4 .shine{background:linear-gradient(115deg,rgba(255,255,255,0) calc(var(--sp,40%) - 18%),rgba(255,255,255,.18) var(--sp,40%),rgba(255,255,255,0) calc(var(--sp,40%) + 18%));mix-blend-mode:screen}
 
+/* treasury deck: each word on its own card */
+.deck3d{position:relative;height:500px;perspective:1100px;perspective-origin:50% 40%;touch-action:pan-y;user-select:none;-webkit-user-select:none;overflow:hidden;margin-top:6px}
+.deck3d .c3{position:absolute;top:22px;left:50%;width:286px;margin-left:-143px;will-change:transform;transform-origin:50% 60%;cursor:grab;outline:none}
+.deck3d .c3 .card{box-shadow:0 30px 40px -22px rgba(40,22,12,.55),0 6px 12px -6px rgba(40,22,12,.25)}
+html[data-theme="night"] .deck3d .c3 .card{box-shadow:0 30px 44px -20px rgba(0,0,0,.9),0 6px 12px -6px rgba(0,0,0,.6)}
+.deck3d .c3.on .card{box-shadow:0 40px 50px -24px rgba(40,22,12,.65),0 10px 18px -8px rgba(40,22,12,.3)}
 /* carousel */
 .carousel{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:18px 0 34px;scrollbar-width:none;align-items:center}
 .carousel::-webkit-scrollbar{display:none}

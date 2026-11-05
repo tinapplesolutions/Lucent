@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.0.1';
+const VERSION = '1.1.0';
 const WHATS_NEW = [
+  { v: '1.1.0', title: 'Cards you can hold', notes: ['Treasury cards now move like real cards: each one follows your finger, tilts, and settles into place.', 'Every word now shows its synonyms and its opposites (antonyms), below “Close in meaning.”', 'Meanings are now ordered by how commonly each is used.', 'The dictionary refreshes once in the background (about 9 MB) to add the new opposites.'] },
   { v: '1.0.1', title: 'Installing fixed', notes: ['Lucent now installs as its own app on your phone, separate from Manna.'] },
   { v: '1.0.0', title: 'Welcome to Lucent', notes: ['Your Treasury, Lexis practice, Word Lore and the full offline dictionary are ready.', 'Pronunciations marked ≈ are estimates; they are confirmed the first time you open the word while online.'] }
 ];
@@ -357,7 +358,9 @@ async function openWord(q) {
   if (!e) { body.innerHTML = `<div class="sec"><h1 class="wp-word">${esc(q)}</h1><p class="muted">This word isn’t in the dictionary yet. Check the spelling, or try its plain form.</p></div>`; return; }
   const draw = () => {
     const o = originText(w, e);
-    const syn = [...new Set(e.s.flatMap(s => s[3] || []))].filter(x => x.toLowerCase() !== w).slice(0, 8);
+    const uniq = (k, n) => [...new Set(e.s.slice(0, 3).flatMap(s => s[k] || []))].filter(x => x.toLowerCase() !== w).slice(0, n);
+    const syn = uniq(3, 10), sim = uniq(5, 8).filter(x => !syn.includes(x)), ant = uniq(4, 8);
+    const chips = (title, list) => list.length ? `<section class="sec"><div class="micro">${title}</div><div class="chips">${list.map(s => `<button class="chip" data-w="${esc(s)}">${esc(s)}</button>`).join('')}</div></section>` : '';
     const kept = inT(w);
     body.innerHTML = `
       <section class="stack" style="gap:6px">
@@ -368,7 +371,10 @@ async function openWord(q) {
       <div class="hr" style="margin:20px 0"></div>
       <section class="stack" style="gap:14px">${sensesHTML(e)}</section>
       ${o ? `<section class="origin" style="margin-top:20px"><div class="micro" style="color:var(--acc)">Origin</div><div class="t">${o.html}</div></section>` : ''}
-      ${syn.length ? `<section class="sec"><div class="micro">Close in meaning</div><div class="chips">${syn.map(s => `<button class="chip" data-w="${esc(s)}">${esc(s)}</button>`).join('')}</div></section>` : ''}
+      ${chips('Close in meaning', sim)}
+      ${chips('Synonyms', syn)}
+      ${chips('Antonyms · opposites', ant)}
+      ${!sim.length && !syn.length && !ant.length ? '' : ''}
       <div style="height:20px"></div>
       <button class="btn${kept ? ' ghost' : ''}" id="keepBtn">${kept ? ICON.markOn + ' In your Treasury · ' + LX.CARD_LEVELS[lvlIdx(treasury[w].c)].n : ICON.mark + ' Add to Treasury'}</button>`;
     body.querySelector('#sp').onclick = () => speak(w);
@@ -447,32 +453,88 @@ async function renderTreasury() {
     $('#goS').onclick = () => go('search'); return;
   }
   view.innerHTML = `<div style="padding:0 22px"><h1 class="big">Treasury</h1><p class="serif it muted" style="font-size:17px;margin:6px 0 0">${words.length} word${words.length > 1 ? 's' : ''} you have chosen to keep.</p></div>
-    <div class="carousel" id="car"><div class="pad"></div>${words.map((w, i) => `<button class="slot" data-i="${i}" aria-label="${esc(w)}"><div class="card f0" style="height:450px"></div></button>`).join('')}<div class="pad"></div></div>
+    <div class="deck3d" id="deck">${words.map((w, i) => `<div class="c3" data-i="${i}" role="button" tabindex="0" aria-label="${esc(w)}"><div class="card f0" style="height:450px"></div></div>`).join('')}</div>
     <div class="dots" id="dots"></div><div class="hint" style="margin-top:12px">Swipe to browse · Tap to open</div>`;
-  const car = $('#car'), slots = $$('.slot', car);
-  // fill cards lazily (shards load on demand)
+  const deck = $('#deck'), cards = $$('.c3', deck), N = words.length;
   const filled = new Set();
   const fill = async i => {
-    if (filled.has(i) || i < 0 || i >= words.length) return; filled.add(i);
+    if (filled.has(i) || i < 0 || i >= N) return; filled.add(i);
     const w = words[i], e = await Dict.get(w);
-    slots[i].innerHTML = cardHTML(w, e, treasury[w], 450);
+    cards[i].innerHTML = cardHTML(w, e, treasury[w], 450);
   };
-  const center = () => {
-    const mid = car.scrollLeft + car.clientWidth / 2; let best = 0, bd = 1e9;
-    slots.forEach((s, i) => { const c = s.offsetLeft + s.offsetWidth / 2; const d = Math.abs(c - mid); if (d < bd) { bd = d; best = i; } });
-    return best;
+  const STEP = 236;
+  let pos = Math.min(tIndex, N - 1), anim = null, last = -1;
+  const render = () => {
+    cards.forEach((c, i) => {
+      const d = i - pos, ad = Math.abs(d);
+      if (ad > 3.2) { c.style.visibility = 'hidden'; return; }
+      c.style.visibility = 'visible';
+      const x = d * STEP * (ad > 1 ? 0.92 : 1);
+      const ry = Math.max(-38, Math.min(38, -d * 22));
+      const sc = 1 - Math.min(ad, 2) * 0.09;
+      const tz = -Math.min(ad, 3) * 90;
+      const lift = Math.max(0, 1 - ad) * 10;
+      c.style.transform = `translate3d(${x}px, ${-lift}px, ${tz}px) rotateY(${ry}deg) rotateZ(${d === 0 ? 0 : 0}deg) scale(${sc})`;
+      c.style.zIndex = String(100 - Math.round(ad * 10));
+      c.style.opacity = String(ad > 2 ? Math.max(0, 1 - (ad - 2) * 0.8) : 1);
+      c.style.filter = `brightness(${(1 - Math.min(ad, 2) * 0.12).toFixed(3)})`;
+      c.classList.toggle('on', ad < 0.5);
+    });
+    const c = Math.max(0, Math.min(N - 1, Math.round(pos)));
+    if (c !== last) {
+      last = c; tIndex = c;
+      [c - 2, c - 1, c, c + 1, c + 2].forEach(fill);
+      const n = Math.min(N, 7), st = Math.max(0, Math.min(c - 3, N - n));
+      $('#dots').innerHTML = Array.from({ length: n }, (_, k) => `<i class="${st + k === c ? 'on' : ''}"></i>`).join('');
+    }
   };
-  const update = () => {
-    const c = center(); tIndex = c;
-    slots.forEach((s, i) => s.classList.toggle('on', i === c));
-    [c - 2, c - 1, c, c + 1, c + 2].forEach(fill);
-    const n = Math.min(words.length, 7), start = Math.max(0, Math.min(c - 3, words.length - n));
-    $('#dots').innerHTML = Array.from({ length: n }, (_, k) => `<i class="${start + k === c ? 'on' : ''}"></i>`).join('');
+  const animateTo = (target, ms = 380) => {
+    cancelAnimationFrame(anim);
+    const from = pos, t0 = performance.now();
+    if (Math.round(target) !== Math.round(from) && navigator.vibrate) { try { navigator.vibrate(6); } catch { } }
+    const tick = now => {
+      const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      pos = from + (target - from) * e; render();
+      if (k < 1) anim = requestAnimationFrame(tick);
+    };
+    anim = requestAnimationFrame(tick);
   };
-  let raf; car.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(update); }, { passive: true });
-  slots.forEach((s, i) => s.onclick = () => { if (i === center()) openFull(words, i); else s.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); });
-  const start = Math.min(tIndex, words.length - 1);
-  requestAnimationFrame(() => { slots[start].scrollIntoView({ inline: 'center', block: 'nearest' }); update(); });
+  // drag: the card follows your finger, tilting slightly like a real card
+  let drag = null;
+  deck.addEventListener('pointerdown', ev => {
+    cancelAnimationFrame(anim);
+    drag = { x: ev.clientX, y: ev.clientY, p: pos, t: performance.now(), vx: 0, lx: ev.clientX, lt: performance.now(), moved: false, id: ev.pointerId, horiz: null };
+  });
+  deck.addEventListener('pointermove', ev => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (drag.horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) { drag.horiz = Math.abs(dx) > Math.abs(dy); if (drag.horiz) deck.setPointerCapture(ev.pointerId); }
+    if (!drag.horiz) return;
+    drag.moved = true;
+    const now = performance.now(); drag.vx = (ev.clientX - drag.lx) / Math.max(1, now - drag.lt); drag.lx = ev.clientX; drag.lt = now;
+    let p = drag.p - dx / STEP;
+    if (p < 0) p = p * 0.35; if (p > N - 1) p = N - 1 + (p - (N - 1)) * 0.35; // rubber-band at the ends
+    pos = p; render();
+    const top = cards[Math.round(Math.max(0, Math.min(N - 1, pos)))];
+    if (top) top.style.transform += ` rotateZ(${Math.max(-6, Math.min(6, -drag.vx * 3)).toFixed(2)}deg)`;
+  });
+  const end = ev => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    const d = drag; drag = null;
+    if (!d.moved) {
+      const el = ev.target.closest('.c3'); if (!el) return;
+      const i = +el.dataset.i;
+      if (i === Math.round(pos)) openFull(words, i); else animateTo(i);
+      return;
+    }
+    let target = Math.round(pos - d.vx * 0.9);
+    target = Math.max(0, Math.min(N - 1, target));
+    if (Math.abs(target - d.p) > 3) target = d.p + Math.sign(target - d.p) * 3;
+    animateTo(target, 420);
+  };
+  deck.addEventListener('pointerup', end); deck.addEventListener('pointercancel', end);
+  deck.addEventListener('keydown', ev => { if (ev.key === 'ArrowRight') animateTo(Math.min(N - 1, Math.round(pos) + 1)); if (ev.key === 'ArrowLeft') animateTo(Math.max(0, Math.round(pos) - 1)); if (ev.key === 'Enter') openFull(words, Math.round(pos)); });
+  render();
 }
 
 /* ---------- full-screen card (front/back) ---------- */
@@ -484,7 +546,8 @@ async function openFull(words, i) {
     const li = lvlIdx(rec.c), nxt = LX.CARD_LEVELS[li + 1];
     const prog = nxt ? Math.round(((rec.c - LX.CARD_LEVELS[li].at) / (nxt.at - LX.CARD_LEVELS[li].at)) * 100) : 100;
     const o = originText(w, e);
-    const syn = e ? [...new Set(e.s.flatMap(s => s[3] || []))].filter(x => x !== w).slice(0, 6) : [];
+    const syn = e ? [...new Set(e.s.slice(0, 3).flatMap(s => s[3] || []))].filter(x => x !== w).slice(0, 6) : [];
+    const ant = e ? [...new Set(e.s.slice(0, 3).flatMap(s => s[4] || []))].filter(x => x !== w).slice(0, 5) : [];
     let fam = [];
     try { await Pool.load(); const r = Pool.map.get(w); if (r && r[3] >= 0) fam = (Pool.byRoot.get(r[3]) || []).filter(x => x !== w).slice(0, 6); } catch { }
     const acc = rec.c + rec.m ? Math.round(rec.c / (rec.c + rec.m) * 100) + '%' : '—';
@@ -497,7 +560,8 @@ async function openFull(words, i) {
           ${e ? `<div><div class="k">All meanings</div><div class="v">${e.s.slice(0, 4).map((s, k) => `${k + 1}. <i>${esc(s[0])}</i> — ${esc(s[1])}`).join('<br>')}</div></div>` : ''}
           ${o ? `<div><div class="k">Origin</div><div class="v serif" style="font-size:16px">${o.html}</div></div>` : ''}
           ${fam.length ? `<div><div class="k">Same root</div><div class="v">${fam.map(esc).join(' · ')}</div></div>` : ''}
-          ${syn.length ? `<div><div class="k">Close in meaning</div><div class="v">${syn.map(esc).join(' · ')}</div></div>` : ''}
+          ${syn.length ? `<div><div class="k">Synonyms</div><div class="v">${syn.map(esc).join(' · ')}</div></div>` : ''}
+          ${ant.length ? `<div><div class="k">Antonyms · opposites</div><div class="v">${ant.map(esc).join(' · ')}</div></div>` : ''}
           <div><div class="k">Your notes</div><textarea id="note" placeholder="Where you met it, how to remember it…">${esc(rec.note || '')}</textarea></div>
           ${rec.sent && rec.sent.length ? `<div><div class="k">Your sentences</div><div class="v serif it" style="font-size:16px">${rec.sent.map(x => '“' + esc(x) + '”').join('<br>')}</div></div>` : ''}
           <div class="k" style="margin-top:4px">Collected ${new Date(rec.a).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</div>
@@ -806,7 +870,7 @@ function renderProfile() {
   const rk = rankOf(), tw = Object.values(treasury);
   const counts = [0, 0, 0, 0, 0]; tw.forEach(r => counts[lvlIdx(r.c)]++);
   const acc = stats.ok + stats.bad ? Math.round(stats.ok / (stats.ok + stats.bad) * 100) + '%' : '—';
-  const off = store.get('offline', { done: 0, total: 0 });
+  const off = store.get('offline2', { done: 0, total: 0 });
   view.innerHTML = `
     <section class="row" style="gap:16px">${avatarHTML(72)}<div class="stack" style="gap:2px;min-width:0"><div class="serif" style="font-size:32px;font-weight:500;line-height:1.05;overflow:hidden;text-overflow:ellipsis">${esc(profile.name)}</div>
       <div class="serif it" style="font-size:16px;color:var(--acc)">${rk.name} · rank ${rk.i + 1} of 5</div></div>
@@ -830,7 +894,7 @@ function renderProfile() {
   $('#edit').onclick = editProfile;
   const pal = $('#pal'); if (pal) pal.onclick = () => showPalate(profile.palate, false);
   $$('#theme button').forEach(b => b.onclick = () => { settings.theme = b.dataset.t; save.settings(); applyTheme(); renderProfile(); });
-  $('#offl').onclick = () => { const o = store.get('offline', {}); if (o.total && o.done >= o.total) toast('The whole dictionary is saved on this phone.'); else { startOfflineDownload(true); toast('Saving the dictionary for offline use…'); } };
+  $('#offl').onclick = () => { const o = store.get('offline2', {}); if (o.total && o.done >= o.total) toast('The whole dictionary is saved on this phone.'); else { startOfflineDownload(true); toast('Saving the dictionary for offline use…'); } };
   $('#bk').onclick = backup;
   $('#rs').onclick = () => $('#rsf').click();
   $('#rsf').onchange = restore;
@@ -1034,21 +1098,21 @@ function showPalate(p, inFlow, host, next) {
 /* ---------- offline download + updates ---------- */
 async function startOfflineDownload(force) {
   if (!('serviceWorker' in navigator)) return;
-  const o = store.get('offline', { done: 0, total: 0 });
+  const o = store.get('offline2', { done: 0, total: 0 });
   if (o.total && o.done >= o.total && !force) return;
   try {
     const idx = await Dict.index();
     const urls = ['data/words.json', 'data/pool.json', 'data/dict/index.json', ...idx.map(x => 'data/dict/' + x[1])];
     const reg = await navigator.serviceWorker.ready;
-    store.set('offline', { done: o.done || 0, total: urls.length });
-    reg.active && reg.active.postMessage({ type: 'download', key: 'dict', urls, cache: 'lucent-dict-v1' });
+    store.set('offline2', { done: o.done || 0, total: urls.length });
+    reg.active && reg.active.postMessage({ type: 'download', key: 'dict', urls, cache: 'lucent-dict-v2' });
   } catch { }
 }
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', ev => {
     const m = ev.data || {};
     if (m.type === 'dl-progress' || m.type === 'dl-done') {
-      const o = store.get('offline', { total: 0 }); o.done = m.done; if (m.type === 'dl-done' && !m.ok) o.retry = 1; store.set('offline', o);
+      const o = store.get('offline2', { total: 0 }); o.done = m.done; if (m.type === 'dl-done' && !m.ok) o.retry = 1; store.set('offline2', o);
       const st = $('#offst'); if (st) st.textContent = offlineLabel(o);
     }
   });

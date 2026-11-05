@@ -1,5 +1,5 @@
 /* Lucent service worker: the app and the whole dictionary work offline. */
-const VERSION = 'lucent-v1.0.1';
+const VERSION = 'lucent-v1.1.0';
 const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
   'fonts/cormorant-garamond-latin-400-normal.woff2', 'fonts/cormorant-garamond-latin-400-italic.woff2', 'fonts/cormorant-garamond-latin-500-normal.woff2',
@@ -7,14 +7,14 @@ const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'manifest.webmanifest
   'fonts/cormorant-garamond-latin-ext-400-italic.woff2', 'fonts/cormorant-garamond-latin-ext-500-normal.woff2', 'fonts/cormorant-garamond-latin-ext-500-italic.woff2',
   'fonts/inter-latin-300-normal.woff2', 'fonts/inter-latin-400-normal.woff2', 'fonts/inter-latin-500-normal.woff2', 'fonts/inter-latin-600-normal.woff2',
   'fonts/inter-latin-ext-400-normal.woff2'];
-const DICT = 'lucent-dict-v1';
+const DICT = 'lucent-dict-v2';
 const AUDIO = 'lucent-audio';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('lucent-v') && k !== VERSION).map(k => caches.delete(k))))
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => (k.startsWith('lucent-v') && k !== VERSION) || (k.startsWith('lucent-dict-') && k !== DICT)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('message', e => { if (e.data && e.data.type === 'skip-waiting') self.skipWaiting(); });
