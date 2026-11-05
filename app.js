@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const WHATS_NEW = [
+  { v: '1.0.1', title: 'Installing fixed', notes: ['Lucent now installs as its own app on your phone, separate from Manna.'] },
   { v: '1.0.0', title: 'Welcome to Lucent', notes: ['Your Treasury, Lexis practice, Word Lore and the full offline dictionary are ready.', 'Pronunciations marked ≈ are estimates; they are confirmed the first time you open the word while online.'] }
 ];
 

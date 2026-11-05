@@ -4,7 +4,7 @@
   "description": "An offline dictionary and lexicon builder. By Tin Apple.",
   "start_url": "./",
   "scope": "./",
-  "id": "./",
+  "id": "/Lucent/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F6F1E7",
