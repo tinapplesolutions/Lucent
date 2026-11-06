@@ -517,6 +517,25 @@ html[data-theme="night"] .deck3d .c3 .lcard{box-shadow:0 30px 44px -20px rgba(0,
 .ascgo .ag-n{display:flex;align-items:center;gap:6px;font:500 12px var(--sans);opacity:.8}.ascgo .ag-n svg{width:14px;height:14px}
 .ascnone{display:flex;flex-direction:column;gap:4px;border:1px dashed var(--line2);border-radius:14px;padding:16px;font-size:15px}
 .ascnone .muted{font-size:13px}
+
+/* ---- Sentence Judge (1.7) ---- */
+.jfacts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.jfacts div{display:flex;flex-direction:column;gap:2px;padding:12px;border-left:1px solid var(--line)}.jfacts div:first-child{border-left:0}
+.jfacts b{font-family:var(--serif);font-size:19px;font-weight:500}.jfacts span{font-size:11px;color:var(--muted)}
+.jbar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}.jbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
+.jready{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:#2F6B4F;font-weight:500}.jready::before{content:'';width:8px;height:8px;border-radius:4px;background:#2F6B4F}
+.jneed{display:flex;flex-direction:column;gap:4px;border:1px dashed var(--line2);border-radius:14px;padding:14px;font-size:14px;max-width:320px;text-align:left}.jneed span{color:var(--muted);font-size:13px}
+.sentbox{width:100%;box-sizing:border-box;border:1px solid var(--line2);border-radius:14px;background:var(--paper);color:var(--ink);padding:14px;font-family:var(--serif);font-size:20px;line-height:1.35;resize:vertical}
+.jmsg{border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45}
+.jmsg.no{background:color-mix(in srgb,#8C2A37 10%,transparent);color:var(--ink);border:1px solid color-mix(in srgb,#8C2A37 35%,transparent)}
+.jmsg.rule{background:var(--paper);border:1px solid var(--line2)}
+.jreveal{border-left:3px solid var(--acc);padding:4px 0 4px 14px}
+.jreveal .k{font-size:10px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.wdone{display:flex;flex-direction:column;gap:6px;font-family:var(--serif);font-style:italic;font-size:16px;color:var(--muted)}
+.wdone div::before{content:'✓ ';color:#2F6B4F;font-style:normal}
+.linkbtn{background:none;border:0;color:var(--acc);font:500 14px var(--sans);text-decoration:underline;text-underline-offset:3px;padding:4px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>

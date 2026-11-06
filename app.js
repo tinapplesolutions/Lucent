@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const WHATS_NEW = [
+  { v: '1.7.0', title: 'The Sentence Judge', notes: ['Lucent can now read the sentences you write and judge whether each word is used with its true meaning. It is a small AI that lives on your phone: download it once (580 MB, Wi-Fi recommended) from Profile, and it works offline. Nothing you write leaves your phone.', 'Your own sentence in Lexis no longer shows the meaning. You get a random word from your Treasury and must show you know it. If you miss, Lucent reveals the meaning so you can try again.', 'The Ascension Trials to Fluent and Silver-Tongued now end with three sentences of your own, read by the judge. If one is rejected, you get one rewrite before it counts as a mistake.', 'The judge is accurate but not perfect, about 9 in 10 on our tests, so a clever misuse may occasionally slip past.'] },
   { v: '1.6.0', title: 'Collectible cards and the Ascension Trial', notes: ['Every Treasury card is now a glossy collectible. The higher its level, the grander it looks: plain folio, linen, tooled leather, a gold Greek key border, and finally engraved silver set with diamonds.', 'Each card carries an emblem that matches the word’s meaning (an owl for wisdom, scales for balance). Don’t like one? Flip the card and choose another.', 'Cards now rise only through their own Ascension Trial. Answer every question correctly to climb; one mistake and the card must wait before trying again. Each level also needs a few days of rest before the next trial.', 'Lexis exercises are now pure practice and no longer level up cards. Your cards keep the levels they already earned.'] },
   { v: '1.5.1', title: 'A new home and practice room', notes: ['Today is redesigned: your word of the day framed like a book cover, three new words to swipe through, and Word Lore set like a page from a fine book.', 'Lexis is now a practice room: a suggested exercise for today, and every exercise stacked like book spines.'] },
   { v: '1.4.0', title: 'A new Discover', notes: ['Discover is redesigned: each category is now a bound book on your shelves, with a Word of the Moment to tempt you.', 'Recent look-ups sit just under the search bar, and the keyboard only opens when you tap it.', 'Plain meanings are now signed “Written in simple English by Lucent.”'] },
@@ -975,7 +976,7 @@ async function startEx(id) {
   exBusy++;
   const el = overlay(X.n, '<div class="hint" style="margin-top:40vh">Preparing…</div>', { onClose: endBusy });
   const body = $('.ov-body', el);
-  let words = pickForPractice(10);
+  let words = id === 'sentence' ? shuffle(Object.keys(treasury)).slice(0, 5) : pickForPractice(10);
   const qs = [];
   for (const w of words) {
     const e = await Dict.get(w); if (!e) continue;
@@ -991,7 +992,7 @@ async function startEx(id) {
   if (!qs.length) { body.innerHTML = `<p class="serif" style="font-size:20px;margin-top:30px">${id === 'blank' ? 'None of your words has an example sentence yet.' : 'Your words are still loading.'}</p><p class="muted">${id === 'blank' ? 'Write one in “Your own sentence,” and it will appear here.' : 'Try again in a moment.'}</p>`; return; }
   let qi = 0, right = 0;
   const finish = () => {
-    if (id === 'sentence') { body.innerHTML = `<div class="stack" style="gap:14px;margin-top:30px;text-align:center"><div class="serif" style="font-size:34px">Well written.</div><p class="muted">Your sentences are saved on each card’s back.</p><button class="btn" id="done">Done</button></div>`; }
+    if (id === 'sentence') { body.innerHTML = `<div class="stack" style="gap:14px;margin-top:30px;text-align:center"><div class="micro">Session complete</div>${Judge.ready() ? `<div class="serif" style="font-size:64px;line-height:1">${right}<span class="muted" style="font-size:32px"> / ${qs.length}</span></div><p class="muted">${right === qs.length ? 'Every word used well.' : 'Words well used are saved on their cards.'}</p>` : '<div class="serif" style="font-size:34px">Well written.</div><p class="muted">Your sentences are saved on each card’s back.</p>'}<button class="btn" id="again">Another round</button><button class="btn ghost" id="done">Done</button></div>`; }
     else body.innerHTML = `<div class="stack" style="gap:14px;margin-top:30px;text-align:center"><div class="micro">Session complete</div><div class="serif" style="font-size:64px;line-height:1">${right}<span class="muted" style="font-size:32px"> / ${qs.length}</span></div><p class="muted">${right === qs.length ? 'Flawless.' : right >= qs.length * .7 ? 'A fine showing.' : 'Every miss makes the next one stick.'}</p><button class="btn" id="again">Another round</button><button class="btn ghost" id="done">Done</button></div>`;
     $('#done', body).onclick = () => closeTop();
     const ag = $('#again', body); if (ag) ag.onclick = () => { closeTop(); setTimeout(() => startEx(id), 50); };
@@ -1037,20 +1038,146 @@ async function startEx(id) {
       $('#check', body).onclick = check; inp.onkeydown = ev => { if (ev.key === 'Enter') check(); };
       setTimeout(() => inp.focus(), 350);
     } else if (id === 'sentence') {
-      body.innerHTML = head() + `<div class="stack" style="gap:16px;margin-top:30px"><div class="qword" style="text-align:left;font-size:44px">${esc(q.w)}</div><div style="font-size:15px;line-height:1.5">${esc(def)}.</div>
-        <textarea id="sent" rows="4" style="width:100%;border:1px solid var(--line2);border-radius:14px;background:var(--paper);padding:14px;font-family:var(--serif);font-size:20px;resize:vertical" placeholder="Write a sentence using “${esc(q.w)}”…"></textarea>
-        <button class="btn" id="saveS">Save to card</button><button class="btn ghost" id="skip">Skip</button></div>`;
-      $('#saveS', body).onclick = () => {
-        const v = $('#sent', body).value.trim(); if (!v) { toast('Write a sentence first.'); return; }
-        const r = treasury[q.w]; r.sent = (r.sent || []).concat(v).slice(-10); save.treasury();
-        const d = ymd(); if (!stats.days.includes(d)) { stats.days.push(d); save.stats(); }
-        checkSeals(); qi++; qi < qs.length ? ask() : finish();
+      const p = pronOf(q.w, q.e), pl = plainOf(q.w), counted = { done: false };
+      const reveal = () => `<div class="jreveal"><div class="k">Meaning</div><div class="serif" style="font-size:19px;line-height:1.35">${esc(def)}.</div>${pl ? `<div class="serif it muted" style="font-size:16px;margin-top:4px">“${esc(pl[1])}”</div>` : ''}</div>`;
+      const page = (msg, kind) => {
+        body.innerHTML = head() + `<div class="stack" style="gap:14px;margin-top:26px">
+          <div class="row" style="justify-content:space-between;align-items:center"><div class="qword" style="text-align:left;font-size:42px">${esc(q.w)}</div><button class="speak" id="sp" aria-label="Hear it">${ICON.speak}</button></div>
+          ${p ? `<div class="muted" style="font-size:14px;margin-top:-8px">${esc(p.r || '')}</div>` : ''}
+          <p class="muted" style="font-size:14px;line-height:1.5;margin:0">No meaning given. Write a sentence that shows you know it: at least ${MIN_WORDS} words.</p>
+          ${msg ? `<div class="jmsg ${kind}">${msg}</div>` : ''}
+          ${kind === 'no' || kind === 'self' ? reveal() : ''}
+          <textarea id="sent" rows="4" class="sentbox" placeholder="Use “${esc(q.w)}” in a sentence…"></textarea>
+          <button class="btn" id="sub">${Judge.ready() ? 'Submit' : 'Check it myself'}</button>
+          ${!Judge.ready() ? '<button class="linkbtn" id="jset">Let Lucent judge my sentences (set up the Sentence Judge)</button>' : ''}
+          <button class="btn ghost" id="skip">${kind === 'no' ? 'Next word' : 'Skip'}</button></div>`;
+        $('#sp', body).onclick = () => speak(q.w);
+        const js = $('#jset', body); if (js) js.onclick = () => judgeSetup(() => page(msg, kind));
+        $('#skip', body).onclick = () => { qi++; qi < qs.length ? ask() : finish(); };
+        const ta = $('#sent', body), sb = $('#sub', body);
+        const keep = v => { const r = treasury[q.w]; r.sent = (r.sent || []).concat(v).slice(-10); save.treasury(); checkSeals(); };
+        sb.onclick = async () => {
+          const v = ta.value.trim(); if (!v || body.dataset.lock) return;
+          if (!Judge.ready()) {   // self-check: reveal the meaning, then the reader judges
+            body.innerHTML = head() + `<div class="stack" style="gap:14px;margin-top:26px"><div class="qword" style="text-align:left;font-size:42px">${esc(q.w)}</div><div class="serif it" style="font-size:20px">“${esc(v)}”</div>${reveal()}
+              <p class="muted" style="font-size:14px;margin:0">Did you use it with this meaning?</p><button class="btn" id="yes">Yes, used it right</button><button class="btn ghost" id="noq">Not quite</button></div>`;
+            $('#yes', body).onclick = () => { keep(v); recordAnswer(q.w, true); right++; qi++; qi < qs.length ? ask() : finish(); };
+            $('#noq', body).onclick = () => { recordAnswer(q.w, false); qi++; qi < qs.length ? ask() : finish(); };
+            return;
+          }
+          body.dataset.lock = 1; sb.disabled = true; sb.innerHTML = '<span class="spin"></span> Lucent is reading…';
+          let r;
+          try { r = await Judge.check(q.w, q.e, v, treasury[q.w].sent || []); }
+          catch (err) { delete body.dataset.lock; sb.disabled = false; sb.textContent = 'Submit'; toast('The judge could not read that just now. Try again.'); return; }
+          delete body.dataset.lock;
+          if (r.ok) {
+            keep(v); if (!counted.done) { recordAnswer(q.w, true); right++; counted.done = true; }
+            body.innerHTML = head() + `<div class="stack" style="gap:14px;margin-top:26px"><div class="micro" style="color:#2F6B4F">Well used</div><div class="qword" style="text-align:left;font-size:42px">${esc(q.w)}</div><div class="serif it" style="font-size:20px;line-height:1.35">“${esc(v)}”</div>${reveal()}<p class="muted" style="font-size:13px;margin:0">Saved to its card.</p><button class="btn" id="nx">${qi + 1 < qs.length ? 'Next word' : 'Finish'}</button></div>`;
+            $('#nx', body).onclick = () => { qi++; qi < qs.length ? ask() : finish(); };
+          } else {
+            if (r.why === 'meaning' && !counted.done) { recordAnswer(q.w, false); counted.done = true; }
+            page(esc(r.note) + (r.why === 'meaning' ? ' Here is its meaning. Try again, or move on.' : ''), r.why === 'meaning' ? 'no' : 'rule');
+            if (r.why === 'meaning') $('#sent', body).value = v;
+          }
+        };
       };
-      $('#skip', body).onclick = () => { qi++; qi < qs.length ? ask() : finish(); };
+      page('', '');
     }
   };
   if (id === 'sentence') qs.splice(5);
   ask();
+}
+
+/* ---------- Sentence Judge: a small AI on the phone that checks how a word is used ---------- */
+const JUDGE_SIZE = '580 MB';
+const JUDGE_T = 0.3;          // calibrated on hand-written test sentences
+const MIN_WORDS = 6;
+const Judge = {
+  w: null, n: 0, wait: {}, prog: null, onprog: null, device: null,
+  ready: () => settings.judge === 'ready',
+  worker() {
+    if (this.w) return this.w;
+    this.w = new Worker('judge-worker.js', { type: 'module' });
+    this.w.onmessage = e => {
+      const m = e.data || {};
+      if (m.type === 'progress') { this.prog = m; if (this.onprog) this.onprog(m); return; }
+      if (m.device) this.device = m.device;
+      const f = this.wait[m.id]; if (f) { delete this.wait[m.id]; f(m); }
+    };
+    this.w.onerror = e => { const ws = this.wait; this.wait = {}; Object.values(ws).forEach(f => f({ type: 'error', message: e.message || 'The judge stopped.' })); this.w = null; };
+    return this.w;
+  },
+  call(msg) { return new Promise((res, rej) => { msg.id = ++this.n; this.wait[msg.id] = m => m.type === 'error' ? rej(new Error(m.message)) : res(m); this.worker().postMessage(msg); }); },
+  load() { return this.call({ type: 'load', device: settings.judgeDev || 'wasm' }); },
+  warm() { if (this.ready()) this.load().catch(() => { }); },
+  restart() { if (this.w) { this.w.terminate(); this.w = null; } },
+  async install(onprog, onstage) {
+    this.onprog = onprog;
+    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch { }
+    await this.call({ type: 'load', device: 'wasm' });          // 1) download once (kept offline)
+    this.restart();                                              // start fresh: frees the memory the download used
+    // 2) pick the faster engine on this phone: the graphics chip if it is quick and agrees, else the processor
+    const probe = { type: 'score', word: 'frugal', meaning: 'Careful with money; not wasting it', sentence: 'Being frugal, he reused envelopes and never bought coffee out.' };
+    if (onstage) onstage('Testing the speed on this phone…');
+    let dev = 'wasm';
+    try {
+      const g = await this.call({ type: 'load', device: 'webgpu' });
+      if (g.device === 'webgpu') { const t = await this.call({ ...probe }); if (t.score > 0 && t.ms < 4000) dev = 'webgpu'; }
+    } catch { }
+    if (dev !== 'webgpu') { this.restart(); await this.call({ type: 'load', device: 'wasm' }); await this.call({ ...probe }); }
+    settings.judgeDev = dev; settings.judge = 'ready'; save.settings();
+    return dev;
+  },
+  async remove() {
+    if (this.w) { this.w.terminate(); this.w = null; }
+    try { await caches.delete('transformers-cache'); await caches.delete('lucent-ai'); } catch { }
+    delete settings.judge; delete settings.judgeDev; save.settings();
+  },
+  /* the full check: plain rules first, then the AI's verdict */
+  async check(word, e, sentence, others = []) {
+    const s = sentence.trim().replace(/\s+/g, ' ');
+    const stem = word.toLowerCase().replace(/(e|y)$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!new RegExp('\\b' + stem + '[a-z]{0,4}\\b', 'i').test(s)) return { ok: false, why: 'missing', note: `Use “${word}” itself in your sentence.` };
+    if (s.split(' ').filter(x => /[a-z]/i.test(x)).length < MIN_WORDS) return { ok: false, why: 'short', note: `Write at least ${MIN_WORDS} words, with enough detail to show what “${word}” means.` };
+    const norm = x => x.toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+    const pl = plainOf(word), exs = [pl ? pl[1] : '', ...((e && e.s) || []).flatMap(x => x[2] || [])].map(norm);
+    if (exs.includes(norm(s))) return { ok: false, why: 'copy', note: 'That’s the dictionary’s own example. Write one of your own.' };
+    const bag = x => new Set(norm(x).split(' '));
+    const sim = (a, b) => { const A = bag(a), B = bag(b); let k = 0; A.forEach(x => B.has(x) && k++); return k / Math.max(1, Math.min(A.size, B.size)); };
+    if (others.some(o => sim(o, s) > 0.75)) return { ok: false, why: 'same', note: 'Too close to a sentence you already wrote. Try a fresh situation.' };
+    const meaning = (pl ? pl[0] : shortDef(word, e)).replace(/\.$/, '');
+    if (!this.w) await this.load();
+    const r = await this.call({ type: 'score', word, meaning, sentence: s });
+    return r.score >= JUDGE_T ? { ok: true, score: r.score, ms: r.ms } : { ok: false, why: 'meaning', score: r.score, ms: r.ms, note: `This doesn’t seem to use “${word}” with its true meaning.` };
+  }
+};
+function judgeSetup(onDone) {
+  const el = overlay('Sentence Judge', '', { onClose: onDone });
+  const body = $('.ov-body', el);
+  const draw = () => {
+    const on = Judge.ready();
+    body.innerHTML = `<div class="stack" style="gap:16px;margin-top:10px">
+      <div class="micro" style="color:var(--acc)">On-device AI</div>
+      <h1 class="big" style="font-size:34px;margin:0">The Sentence Judge</h1>
+      <p class="muted" style="font-size:15px;line-height:1.55;margin:0">A small AI that lives on your phone and reads the sentences you write. It checks that each word is used with its true meaning. It works offline, and nothing you write leaves your phone.</p>
+      <div class="jfacts"><div><b>${JUDGE_SIZE}</b><span>one-time download</span></div><div><b>Offline</b><span>after download</span></div><div><b>Private</b><span>stays on your phone</span></div></div>
+      <p class="muted" style="font-size:13px;line-height:1.5;margin:0">Needed for <b style="color:var(--ink)">Your own sentence</b> in Lexis and for the Ascension Trials to Fluent and Silver-Tongued. Wi-Fi recommended.</p>
+      <div id="jst">${on ? '<div class="jready">Ready on this phone</div>' : ''}</div>
+      ${on ? '<button class="btn ghost" id="jrm">Remove the judge (frees space)</button>' : '<button class="btn" id="jin">Download the Sentence Judge</button>'}
+    </div>`;
+    const inb = $('#jin', body);
+    if (inb) inb.onclick = async () => {
+      inb.disabled = true; inb.textContent = 'Preparing…';
+      $('#jst', body).innerHTML = '<div class="jbar"><i id="jbi"></i></div><div class="muted" id="jbt" style="font-size:13px;margin-top:8px">Starting the download…</div>';
+      try {
+        await Judge.install(m => { const p = m.total ? m.loaded / m.total : 0; const bi = $('#jbi', body); if (bi) bi.style.width = (p * 100).toFixed(1) + '%'; const bt = $('#jbt', body); if (bt) bt.textContent = `Downloading… ${Math.round(m.loaded / 1048576)} of ${Math.round(m.total / 1048576)} MB`; inb.textContent = 'Downloading… ' + Math.round(p * 100) + '%'; }, msg => { inb.textContent = msg; const bt = $('#jbt', body); if (bt) bt.textContent = 'Download complete. ' + msg; });
+        toast('The Sentence Judge is ready.'); draw();
+      } catch (err) { inb.disabled = false; inb.textContent = 'Try again'; $('#jst', body).innerHTML = `<div class="muted" style="font-size:13px">The download stopped${navigator.onLine ? '' : ' (you are offline)'}. Try again on a steady connection.</div>`; }
+    };
+    const rmb = $('#jrm', body);
+    if (rmb) rmb.onclick = async () => { if (!confirm('Remove the Sentence Judge from this phone? You can download it again later.')) return; await Judge.remove(); toast('Removed.'); draw(); };
+  };
+  draw();
 }
 
 /* ---------- Ascension Trial: the only way a card rises ---------- */
@@ -1059,13 +1186,15 @@ const FAIL_DAYS = [1, 1, 2, 3];   // wait after a lost trial
 const TRIAL_PLAN = [
   ['meaning', 'reverse', 'synonym'],
   ['meaning', 'synonym', 'blank', 'reverse'],
-  ['meaning', 'synonym', 'blank', 'spell', 'reverse'],
-  ['meaning', 'synonym', 'antonym', 'blank', 'spell', 'origin', 'reverse']
+  ['meaning', 'synonym', 'blank', 'spell', 'reverse', 'write'],
+  ['meaning', 'synonym', 'antonym', 'blank', 'spell', 'origin', 'reverse', 'write']
 ];
+const WRITE_N = 3;   // sentences the trial asks for
 function ascState(rec) {
   const lv = lvOf(rec); if (!rec || lv >= 4) return { max: true, lv };
   const rest = (rec.up || rec.a || 0) + REST_DAYS[lv] * 864e5, fail = rec.fail ? rec.fail + FAIL_DAYS[lv] * 864e5 : 0, at = Math.max(rest, fail);
-  return { lv, at, ready: Date.now() >= at, failed: fail > rest && Date.now() < fail, n: TRIAL_PLAN[lv].length, to: LX.CARD_LEVELS[lv + 1].n };
+  const plan = TRIAL_PLAN[lv], writes = plan.includes('write');
+  return { lv, at, ready: Date.now() >= at, failed: fail > rest && Date.now() < fail, n: plan.length - (writes ? 1 : 0), writes, to: LX.CARD_LEVELS[lv + 1].n };
 }
 function waitText(at) {
   const ms = at - Date.now(); if (ms <= 0) return 'now';
@@ -1074,7 +1203,7 @@ function waitText(at) {
 }
 function ascLine(as) {
   if (as.max) return 'The highest honour. This card is Silver-Tongued.';
-  if (as.ready) return `Ready to rise to <b>${as.to}</b>: a trial of ${as.n} questions. One mistake ends it.`;
+  if (as.ready) return `Ready to rise to <b>${as.to}</b>: a trial of ${as.n} questions${as.writes ? ' and ' + WRITE_N + ' sentences of your own' : ''}. One mistake ends it.`;
   return as.failed ? `The last trial was lost. It may try again ${waitText(as.at)}.` : `Resting before its trial to <b>${as.to}</b>. Ready ${waitText(as.at)}.`;
 }
 const ROOT_LANGS = ['Ancient Greek', 'Late Latin', 'Medieval Latin', 'New Latin', 'Latin', 'Greek', 'Old French', 'Anglo-Norman', 'Middle French', 'French', 'Old English', 'Middle English', 'Old Norse', 'Middle Dutch', 'Dutch', 'Old High German', 'German', 'Italian', 'Spanish', 'Portuguese', 'Arabic', 'Persian', 'Sanskrit', 'Hindi', 'Hebrew', 'Japanese', 'Chinese', 'Turkish', 'Russian', 'Malay', 'Nahuatl', 'Old Irish', 'Scottish Gaelic', 'Yiddish'];
@@ -1105,6 +1234,7 @@ async function trialQuestions(w, e, lv) {
     antonym: async () => { if (!ant.length) return null; const a = ant[0]; return { prompt: wordQ('Which word means the opposite?'), options: shuffle([a, ...(await others(3))]), correct: a, serif: true }; },
     blank: async () => sent ? { prompt: `<div class="stack" style="gap:8px"><div class="muted" style="font-size:14px">Complete the sentence</div><div class="serif it" style="font-size:24px;line-height:1.3">“${esc(sent.replace(re, '_____'))}”</div></div>`, options: shuffle([w, ...(await others(3))]), correct: w, serif: true } : null,
     spell: async () => ({ spell: true }),
+    write: async () => ({ write: true }),
     origin: async () => {
       if (!root) return null;
       const fam = { 'Late Latin': 'Latin', 'Medieval Latin': 'Latin', 'New Latin': 'Latin', 'Ancient Greek': 'Greek', 'Anglo-Norman': 'French', 'Middle French': 'French', 'Old French': 'French' };
@@ -1138,8 +1268,9 @@ async function ascendTrial(w, onDone) {
     <div class="micro" style="color:var(--acc)">${from} → ${to}</div>
     <div class="tcard">${cardHTML(w, e, rec, ch)}</div>
     <h1 class="big" style="font-size:32px;margin:6px 0 0">The Ascension Trial</h1>
-    <p class="muted" style="font-size:15px;line-height:1.5;margin:0;max-width:320px">${qs.length} questions on “${esc(w)}”. Answer every one correctly and the card rises to <b style="color:var(--ink)">${to}</b>. One mistake ends the trial, and the card must wait ${FAIL_DAYS[lv]} day${FAIL_DAYS[lv] > 1 ? 's' : ''} to try again.</p>
-    <button class="btn" id="tbeg" style="margin-top:6px">Begin</button></div>`;
+    <p class="muted" style="font-size:15px;line-height:1.5;margin:0;max-width:320px">${st.writes ? `${qs.length - 1} questions on “${esc(w)}”, then ${WRITE_N} sentences of your own, read by the Sentence Judge.` : `${qs.length} questions on “${esc(w)}”.`} Get every one right and the card rises to <b style="color:var(--ink)">${to}</b>. One mistake ends the trial, and the card must wait ${FAIL_DAYS[lv]} day${FAIL_DAYS[lv] > 1 ? 's' : ''} to try again.</p>
+    ${st.writes && !Judge.ready() ? `<div class="jneed"><b>This trial needs the Sentence Judge.</b><span>It reads your ${WRITE_N} sentences. Download it once and it works offline.</span></div><button class="btn" id="tjs" style="margin-top:6px">Set up the Sentence Judge</button>` : `<button class="btn" id="tbeg" style="margin-top:6px">Begin</button>`}</div>`;
+  if (st.writes && Judge.ready()) Judge.warm();
   let qi = 0;
   const head = () => `<div class="tsteps">${qs.map((_, k) => `<i class="${k < qi ? 'done' : k === qi ? 'now' : ''}"></i>`).join('')}</div><div class="micro" style="text-align:center;margin-top:8px">Question ${qi + 1} of ${qs.length}</div>`;
   const lose = () => {
@@ -1167,8 +1298,44 @@ async function ascendTrial(w, onDone) {
     $('#tdone', body).onclick = () => closeTop();
   };
   const next = () => { qi++; qi < qs.length ? ask() : win(); };
+  const written = [];
   const ask = () => {
     const q = qs[qi];
+    if (q.write) {
+      let k = 0, retried = false;
+      const page = (msg) => {
+        body.innerHTML = head() + `<div class="stack" style="gap:16px;margin-top:26px">
+          <div class="micro" style="color:var(--acc)">Your own sentence · ${k + 1} of ${WRITE_N}</div>
+          <div class="qword" style="text-align:left;font-size:42px">${esc(w)}</div>
+          <p class="muted" style="font-size:14px;line-height:1.5;margin:0">Write a sentence that shows you know what it means. At least ${MIN_WORDS} words, in a fresh situation each time.</p>
+          ${written.length ? `<div class="wdone">${written.map(x => `<div>“${esc(x)}”</div>`).join('')}</div>` : ''}
+          ${msg ? `<div class="jmsg no">${msg}</div>` : ''}
+          <textarea id="sent" rows="4" class="sentbox" placeholder="Use “${esc(w)}” in a sentence…"></textarea>
+          <button class="btn" id="sub">Submit</button></div>`;
+        const ta = $('#sent', body), sb = $('#sub', body);
+        sb.onclick = async () => {
+          const v = ta.value.trim(); if (!v || body.dataset.lock) return; body.dataset.lock = 1;
+          sb.disabled = true; sb.innerHTML = '<span class="spin"></span> Lucent is reading…';
+          let r;
+          try { r = await Judge.check(w, e, v, written); }
+          catch (err) { delete body.dataset.lock; sb.disabled = false; sb.textContent = 'Submit'; toast('The judge could not read that just now. Try again.'); return; }
+          delete body.dataset.lock;
+          if (r.ok) {
+            written.push(v); rec.sent = (rec.sent || []).concat(v).slice(-10); save.treasury();
+            k++; retried = false;
+            if (k >= WRITE_N) { next(); return; }
+            page(''); toast('Well used.');
+          } else if (!retried && r.why !== 'missing' && r.why !== 'short' && r.why !== 'copy' && r.why !== 'same') {
+            retried = true; page(esc(r.note) + ' <b>One rewrite left.</b>');
+          } else if (r.why === 'missing' || r.why === 'short' || r.why === 'copy' || r.why === 'same') {
+            page(esc(r.note));   // rule slips are pointed out, never counted as a mistake
+          } else lose();
+        };
+        setTimeout(() => ta.focus(), 300);
+      };
+      page('');
+      return;
+    }
     if (q.spell) {
       body.innerHTML = head() + `<div class="stack" style="gap:20px;margin-top:34px;align-items:center;text-align:center"><div class="muted" style="font-size:14px">Listen, then write the word</div>
         <button class="speak" id="play" style="width:72px;height:72px;border-radius:36px" aria-label="Play the word">${ICON.speak}</button>
@@ -1196,7 +1363,8 @@ async function ascendTrial(w, onDone) {
       setTimeout(() => { delete body.dataset.lock; ok ? next() : lose(); }, ok ? 650 : 1500);
     });
   };
-  $('#tbeg', body).onclick = () => ask();
+  const tb = $('#tbeg', body); if (tb) tb.onclick = () => ask();
+  const tj = $('#tjs', body); if (tj) tj.onclick = () => { closeTop(); setTimeout(() => judgeSetup(), 80); };
 }
 function pickEmblem(w, e, onDone) {
   const rec = treasury[w]; if (!rec) return;
@@ -1315,6 +1483,7 @@ function renderProfile() {
     <section class="sec"><div class="micro">Settings</div>
       <div class="setrow"><span>Theme</span><div class="seg" id="theme">${['day', 'night', 'auto'].map(t => `<button data-t="${t}" class="${settings.theme === t ? 'on' : ''}">${t === 'day' ? 'Day' : t === 'night' ? 'Night' : 'Auto'}</button>`).join('')}</div></div>
       <button class="setrow" id="offl"><span>Offline library</span><span id="offst">${offlineLabel(off)}</span></button>
+      <button class="setrow" id="jdg"><span>Sentence Judge</span><span>${Judge.ready() ? 'ready on this phone' : 'not set up'}</span></button>
       <button class="setrow" id="bk"><span>Back up my Treasury</span><span>to a file</span></button>
       <button class="setrow" id="rs"><span>Restore from a backup</span><span>choose file</span></button>
       <button class="setrow" id="cal"><span>Retake calibration</span><span>Level ${['I', 'II', 'III', 'IV', 'V', 'VI'][(profile.level || 3) - 1]}</span></button>
@@ -1325,6 +1494,7 @@ function renderProfile() {
   $$('.seal').forEach(b => b.onclick = () => showSeal(b.dataset.s, false));
   const pal = $('#pal'); if (pal) pal.onclick = () => showPalate(profile.palate, false);
   $$('#theme button').forEach(b => b.onclick = () => { settings.theme = b.dataset.t; save.settings(); applyTheme(); renderProfile(); });
+  $('#jdg').onclick = () => judgeSetup(() => { if (tab === 'profile') renderProfile(); });
   $('#offl').onclick = () => { const o = store.get('offline3', {}); if (o.total && o.done >= o.total) toast('The whole dictionary is saved on this phone.'); else { startOfflineDownload(true); toast('Saving the dictionary for offline use…'); } };
   $('#bk').onclick = backup;
   $('#rs').onclick = () => $('#rsf').click();

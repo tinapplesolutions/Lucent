@@ -1,6 +1,6 @@
 /* Lucent service worker: the app and the whole dictionary work offline. */
-const VERSION = 'lucent-v1.6.0';
-const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'plain.js', 'cats.js', 'seals.js', 'frames.js', 'emblems.js', 'manifest.webmanifest',
+const VERSION = 'lucent-v1.7.0';
+const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'plain.js', 'cats.js', 'seals.js', 'frames.js', 'emblems.js', 'judge-worker.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
   'fonts/cormorant-garamond-latin-400-normal.woff2', 'fonts/cormorant-garamond-latin-400-italic.woff2', 'fonts/cormorant-garamond-latin-500-normal.woff2',
   'fonts/cormorant-garamond-latin-500-italic.woff2', 'fonts/cormorant-garamond-latin-600-normal.woff2', 'fonts/cormorant-garamond-latin-ext-400-normal.woff2',
@@ -9,6 +9,7 @@ const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'plain.js', 'cats.js'
   'fonts/inter-latin-ext-400-normal.woff2'];
 const DICT = 'lucent-dict-v3';
 const AUDIO = 'lucent-audio';
+const AI = 'lucent-ai';   // the Sentence Judge's engine; kept across updates, made only when the judge is set up
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))));
@@ -24,11 +25,20 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) {
     if (/dictionaryapi\.dev\/media|gstatic\.com\/dictionary/.test(url.href)) e.respondWith(cacheFirst(e.request, AUDIO, true));
+    else if (url.hostname === 'cdn.jsdelivr.net' && url.pathname.includes('/@huggingface/transformers@')) e.respondWith(cacheFirst(e.request, AI));
     return;
   }
   if (/\/data\//.test(url.pathname)) { e.respondWith(cacheFirst(e.request, DICT)); return; }
-  e.respondWith(staleWhileRevalidate(e.request, VERSION));
+  if (/\/lib\//.test(url.pathname)) { e.respondWith(cacheFirst(e.request, AI).then(isolate)); return; }
+  e.respondWith(staleWhileRevalidate(e.request, VERSION).then(isolate));
 });
+/* once the Sentence Judge is set up, isolate the app so the AI can use several processor cores */
+async function isolate(res) {
+  if (!res || res.type === 'opaque' || !(await caches.has(AI))) return res;
+  const h = new Headers(res.headers);
+  h.set('Cross-Origin-Opener-Policy', 'same-origin'); h.set('Cross-Origin-Embedder-Policy', 'credentialless');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
 async function cacheFirst(req, name, opaque) {
   const c = await caches.open(name);
   const hit = await c.match(req, { ignoreSearch: true });

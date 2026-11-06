@@ -1,0 +1,8 @@
+Lucent bundles two open-source libraries in this folder for its on-device Sentence Judge:
+
+- Transformers.js 4.3.2 (Hugging Face), Apache License 2.0: see LICENSE-transformers.txt (loaded from jsDelivr, then kept offline)
+- ONNX Runtime Web (Microsoft), MIT License: https://github.com/microsoft/onnxruntime/blob/main/LICENSE
+
+qwen35-q4-web.onnx is the graph of onnx-community/Qwen3.5-0.8B-Text-ONNX (Apache License 2.0, Qwen team)
+with one quantized-lookup block rewritten in standard operators so it runs in browsers without WebGPU.
+The model weights are downloaded from Hugging Face when the judge is set up.
