@@ -1,8 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const WHATS_NEW = [
-  { v: '1.3.0', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
+  { v: '1.3.1', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
   { v: '1.2.0', title: 'Clearer meanings', notes: ['A bigger dictionary: Wiktionary’s clearer meanings now sit alongside the old ones, which you can still open under “More meanings.”', 'Plain meanings: the first 400 words now have a simple-English meaning and example, written for Lucent. More arrive in future updates.', 'Many more words now have a confirmed pronunciation instead of an estimate (≈), and richer word origins.', 'New in Lexis: Synonym match — find the word that means the same, against a 10- or 5-second clock.', 'The dictionary refreshes once in the background (about 13 MB).'] },
   { v: '1.1.0', title: 'Cards you can hold', notes: ['Treasury cards now move like real cards: each one follows your finger, tilts, and settles into place.', 'Every word now shows its synonyms and its opposites (antonyms), below “Close in meaning.”', 'Meanings are now ordered by how commonly each is used.', 'The dictionary refreshes once in the background (about 9 MB) to add the new opposites.'] },
   { v: '1.0.1', title: 'Installing fixed', notes: ['Lucent now installs as its own app on your phone, separate from Manna.'] },
@@ -286,12 +286,18 @@ function streak() {
 }
 const RARITY = { first: 'Common', ten: 'Common', streak7: 'Common', hundred: 'Rare', fluent: 'Rare', scribe: 'Rare', streak30: 'Epic', perfect: 'Epic', silver: 'Legendary' };
 function sealSVG(id, size) { return `<svg width="${size}" height="${size}" viewBox="0 0 200 200" aria-hidden="true">${(LX.SEAL_ART || {})[id] || ''}</svg>`; }
-const sealQ = [];
+const sealQ = []; let exBusy = 0, sealShowing = false;
 function award(id) {
   if (seals[id]) return;
   seals[id] = Date.now(); save.seals();
-  sealQ.push(id); if (sealQ.length === 1) setTimeout(() => showSeal(sealQ[0], true), 500);
+  sealQ.push(id); flushSeals();
 }
+/* seals wait until a practice session ends, so they never interrupt a timed answer */
+function flushSeals() {
+  if (exBusy || sealShowing || !sealQ.length) return;
+  sealShowing = true; setTimeout(() => { if (exBusy || !sealQ.length) { sealShowing = false; return; } showSeal(sealQ[0], true); }, 500);
+}
+function endBusy() { exBusy = Math.max(0, exBusy - 1); setTimeout(flushSeals, 300); }
 function showSeal(id, fresh) {
   const s = LX.SEALS.find(x => x.id === id); if (!s) return;
   const on = !!seals[id];
@@ -302,7 +308,7 @@ function showSeal(id, fresh) {
     <button class="btn" id="spok" style="margin-top:8px">${fresh ? 'Splendid' : 'Close'}</button></div>`;
   const close = () => { closeTop(); };
   el.addEventListener('click', ev => { if (ev.target === el || ev.target.id === 'spok') close(); });
-  pushOverlay(el, () => { if (fresh) { sealQ.shift(); if (sealQ.length) setTimeout(() => showSeal(sealQ[0], true), 300); } });
+  pushOverlay(el, () => { if (fresh) { sealQ.shift(); sealShowing = false; flushSeals(); } });
   if (fresh && navigator.vibrate) { try { navigator.vibrate([20, 40, 30]); } catch { } }
 }
 function checkSeals() {
@@ -853,7 +859,8 @@ function recordAnswer(w, ok) {
 }
 async function startEx(id) {
   const X = EXERCISES.find(x => x.id === id);
-  const el = overlay(X.n, '<div class="hint" style="margin-top:40vh">Preparing…</div>');
+  exBusy++;
+  const el = overlay(X.n, '<div class="hint" style="margin-top:40vh">Preparing…</div>', { onClose: endBusy });
   const body = $('.ov-body', el);
   let words = pickForPractice(10);
   const qs = [];
@@ -951,7 +958,8 @@ function synonymSetup() {
   $('#go', el).onclick = () => { closeTop(); setTimeout(() => synonymGame(settings.synTimer || 10), 60); };
 }
 async function synonymGame(secs) {
-  const el = overlay('Synonym match', '<div class="hint" style="margin-top:40vh">Preparing…</div>');
+  exBusy++;
+  const el = overlay('Synonym match', '<div class="hint" style="margin-top:40vh">Preparing…</div>', { onClose: endBusy });
   const body = $('.ov-body', el);
   await Pool.load();
   const qs = [];
