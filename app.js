@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.7.3';
+const VERSION = '1.7.4';
 const WHATS_NEW = [
+  { v: '1.7.4', title: 'Smoother updates', notes: ['Fixed the update button getting stuck on “Updating…” when two updates arrived close together. Updates now finish in a few seconds, and Lucent reloads by itself if anything is slow.'] },
   { v: '1.7.3', title: 'Card backs, reborn', notes: ['The back of every card now matches its front: the same material and engraved border, laid out like the bookplate in an old library book.', 'Meanings, origin, synonyms and your own sentences sit between ornaments, with your notes on lined paper.', 'To release a word from your Treasury, tap the small round bin at the bottom of its back.'] },
   { v: '1.7.2', title: 'The judge keeps your phone cool', notes: ['Cool mode: the Sentence Judge now thinks on a single processor core. It uses the same total effort, spread out so your phone stays cool, and less memory. Each check takes about 10 seconds.', 'Heat guard: if your phone gets warm and starts slowing itself down, the judge notices and rests for 3 minutes. A rest never counts as a mistake in a trial.'] },
   { v: '1.7.1', title: 'A gentler Sentence Judge', notes: ['The judge now uses at most two processor cores, so a check never works your whole phone at once.', 'Its helper threads go to sleep the moment a check is done instead of idling at full speed.', 'The judge unloads itself a minute after your last sentence, and whenever you leave Lucent, so nothing stays loaded in the background.', 'Setup is lighter: the AI is prepared once instead of two or three times.'] },
@@ -1764,7 +1765,18 @@ function showUpdateBanner(reg) {
   const b = document.createElement('div'); b.className = 'update-banner';
   b.innerHTML = `<b>A new version of Lucent is ready.</b><span class="muted" style="font-size:13px">Your Treasury stays exactly as it is.</span><button class="btn" id="upd">Update now</button><button class="btn ghost" id="later" style="height:44px">Later</button>`;
   document.body.append(sc, b);
-  $('#upd', b).onclick = () => { b.innerHTML = '<b>Updating…</b>'; (reg.waiting || reg.installing) && (reg.waiting || reg.installing).postMessage({ type: 'skip-waiting' }); };
+  $('#upd', b).onclick = () => {
+    b.innerHTML = '<b>Updating…</b><span class="muted" style="font-size:13px">This takes a few seconds.</span>';
+    // always signal the newest waiting version (an older one may have been replaced by a newer update meanwhile)
+    const go = () => { if (reg.waiting) { reg.waiting.postMessage({ type: 'skip-waiting' }); return true; } return false; };
+    const follow = w => w && w.addEventListener('statechange', () => { if (w.state === 'installed') go(); });
+    if (!go()) follow(reg.installing);
+    reg.addEventListener('updatefound', () => follow(reg.installing));
+    reg.update().catch(() => { });
+    // never leave the screen stuck: retry, then simply reload
+    setTimeout(() => { go(); }, 4000);
+    setTimeout(() => { location.reload(); }, 12000);
+  };
   $('#later', b).onclick = () => { b.remove(); sc.remove(); };
 }
 function showWhatsNew() {
