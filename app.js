@@ -1,6 +1,6 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.3.1';
+const VERSION = '1.3.2';
 const WHATS_NEW = [
   { v: '1.3.1', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
   { v: '1.2.0', title: 'Clearer meanings', notes: ['A bigger dictionary: Wiktionary’s clearer meanings now sit alongside the old ones, which you can still open under “More meanings.”', 'Plain meanings: the first 400 words now have a simple-English meaning and example, written for Lucent. More arrive in future updates.', 'Many more words now have a confirmed pronunciation instead of an estimate (≈), and richer word origins.', 'New in Lexis: Synonym match — find the word that means the same, against a 10- or 5-second clock.', 'The dictionary refreshes once in the background (about 13 MB).'] },
