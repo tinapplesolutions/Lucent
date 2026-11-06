@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.5.1';
+const VERSION = '1.6.0';
 const WHATS_NEW = [
+  { v: '1.6.0', title: 'Collectible cards and the Ascension Trial', notes: ['Every Treasury card is now a glossy collectible. The higher its level, the grander it looks: plain folio, linen, tooled leather, a gold Greek key border, and finally engraved silver set with diamonds.', 'Each card carries an emblem that matches the word’s meaning (an owl for wisdom, scales for balance). Don’t like one? Flip the card and choose another.', 'Cards now rise only through their own Ascension Trial. Answer every question correctly to climb; one mistake and the card must wait before trying again. Each level also needs a few days of rest before the next trial.', 'Lexis exercises are now pure practice and no longer level up cards. Your cards keep the levels they already earned.'] },
   { v: '1.5.1', title: 'A new home and practice room', notes: ['Today is redesigned: your word of the day framed like a book cover, three new words to swipe through, and Word Lore set like a page from a fine book.', 'Lexis is now a practice room: a suggested exercise for today, and every exercise stacked like book spines.'] },
   { v: '1.4.0', title: 'A new Discover', notes: ['Discover is redesigned: each category is now a bound book on your shelves, with a Word of the Moment to tempt you.', 'Recent look-ups sit just under the search bar, and the keyboard only opens when you tap it.', 'Plain meanings are now signed “Written in simple English by Lucent.”'] },
   { v: '1.3.1', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
@@ -42,6 +43,7 @@ const ICON = {
   arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
+  ascend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17L4 8l4.5 3.5L12 5l3.5 6.5L20 8l-1 9Z"/><path d="M5 20h14"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>'
 };
 
@@ -57,6 +59,15 @@ const save = {
   profile: () => store.set('profile', profile), treasury: () => store.set('treasury', treasury), stats: () => store.set('stats', stats),
   seals: () => store.set('seals', seals), passed: () => store.set('passed', passed), enr: () => store.set('enr', enr), settings: () => store.set('settings', settings)
 };
+/* cards now rise only through Ascension Trials; older cards keep the level they had already earned */
+(function migrateLevels() {
+  let ch = false;
+  for (const w in treasury) {
+    const r = treasury[w];
+    if (r.lv == null) { let i = 0; [0, 3, 8, 15, 30].forEach((t, k) => { if ((r.c || 0) >= t) i = k; }); r.lv = i; r.up = r.up || r.a || Date.now(); ch = true; }
+  }
+  if (ch) store.set('treasury', treasury);
+})();
 
 /* ---------- theme ---------- */
 function applyTheme() {
@@ -274,9 +285,9 @@ async function speak(word) {
 }
 
 /* ---------- levels, ranks, seals ---------- */
-const lvlIdx = c => { let i = 0; LX.CARD_LEVELS.forEach((l, k) => { if ((c || 0) >= l.at) i = k; }); return i; };
+const lvOf = r => (r && r.lv) | 0;
 function rankOf() {
-  const score = Object.values(treasury).reduce((s, r) => s + lvlIdx(r.c) + 1, 0);
+  const score = Object.values(treasury).reduce((s, r) => s + lvOf(r) + 1, 0);
   const T = [0, 15, 50, 120, 250]; let i = 0; T.forEach((t, k) => { if (score >= t) i = k; });
   return { i, name: LX.RANKS[i], score, next: T[i + 1] };
 }
@@ -317,7 +328,7 @@ function checkSeals() {
   const n = Object.keys(treasury).length;
   if (n >= 1) award('first'); if (n >= 10) award('ten'); if (n >= 100) award('hundred');
   const st = streak(); if (st >= 7) award('streak7'); if (st >= 30) award('streak30');
-  const lv = Object.values(treasury).map(r => lvlIdx(r.c));
+  const lv = Object.values(treasury).map(r => lvOf(r));
   if (lv.some(l => l >= 3)) award('fluent'); if (lv.some(l => l >= 4)) award('silver');
   if ((stats.best || 0) >= 10) award('perfect');
   const sents = Object.values(treasury).reduce((s, r) => s + (r.sent ? r.sent.length : 0), 0); if (sents >= 10) award('scribe');
@@ -327,14 +338,17 @@ function checkSeals() {
 const inT = w => !!treasury[w.toLowerCase()];
 function keep(w) {
   w = w.toLowerCase(); if (treasury[w]) return;
-  treasury[w] = { a: Date.now(), c: 0, m: 0, s: 0 }; save.treasury(); checkSeals(); toast('Added to your Treasury');
+  treasury[w] = { a: Date.now(), c: 0, m: 0, s: 0, lv: 0, up: Date.now() }; save.treasury(); checkSeals(); toast('Added to your Treasury');
 }
 function unkeep(w) { delete treasury[w.toLowerCase()]; save.treasury(); toast('Removed from your Treasury'); }
 
 /* ---------- overlays & back button ---------- */
 const stack = [];
 function pushOverlay(el, onClose) {
-  document.body.appendChild(el); stack.push({ el, onClose });
+  document.body.appendChild(el);
+  // a screen opened from another (a trial from a full card, say) always sits on top of it
+  if (stack.length && !el.classList.contains('sealpop')) { const z = parseInt(getComputedStyle(el).zIndex) || 50; el.style.zIndex = String(Math.min(89, Math.max(z, 61 + stack.length * 3))); }
+  stack.push({ el, onClose });
   history.pushState({ ov: stack.length }, '');
 }
 let skipPop = 0;
@@ -416,7 +430,7 @@ async function openWord(q) {
       ${chips('Antonyms · opposites', ant)}
       ${!sim.length && !syn.length && !ant.length ? '' : ''}
       <div style="height:20px"></div>
-      <button class="btn${kept ? ' ghost' : ''}" id="keepBtn">${kept ? ICON.markOn + ' In your Treasury · ' + LX.CARD_LEVELS[lvlIdx(treasury[w].c)].n : ICON.mark + ' Add to Treasury'}</button>`;
+      <button class="btn${kept ? ' ghost' : ''}" id="keepBtn">${kept ? ICON.markOn + ' In your Treasury · ' + LX.CARD_LEVELS[lvOf(treasury[w])].n : ICON.mark + ' Add to Treasury'}</button>`;
     body.querySelector('#sp').onclick = () => speak(w);
     body.querySelector('#keepBtn').onclick = () => { if (inT(w)) { if (confirm('Remove “' + w + '” from your Treasury?')) unkeep(w); } else keep(w); draw(); };
     $$('.chips [data-w]', body).forEach(b => b.onclick = () => openWord(b.dataset.w));
@@ -517,29 +531,65 @@ function wordSize(w, big) {
   const n = w.length; if (big) return n <= 8 ? 44 : n <= 11 ? 38 : n <= 14 ? 31 : n <= 17 ? 26 : 22;
   return n <= 8 ? 30 : n <= 11 ? 26 : n <= 14 ? 22 : 19;
 }
-function cardHTML(w, e, rec, h = 450) {
-  const li = lvlIdx(rec ? rec.c : 0), L = LX.CARD_LEVELS[li].n;
-  const s = e && e.s ? e.s[0] : null, p = pronOf(w, e);
-  const def = shortDef(w, e);
-  const os = originShort(e, w);
-  const big = h >= 380;
-  if (li === 4) {
-    return `<div class="card f4" style="height:${h}px"><div class="in">
-      <div class="stack" style="align-items:center;gap:8px"><div class="lv">Silver-Tongued</div><div class="rule" style="margin:0"></div></div>
-      <div class="stack" style="align-items:center;gap:8px"><div class="w" style="font-size:${wordSize(w, big) + 4}px">${esc(w)}</div>${p ? `<div class="pr" style="letter-spacing:1px">${esc(p.r || '')}</div>` : ''}<div class="d" style="max-width:220px">${esc(def)}</div></div>
-      <div class="stack" style="align-items:center;gap:8px"><div class="rule" style="margin:0"></div><div class="o">${os}</div></div>
-    </div><div class="shine"></div></div>`;
+/* collectible cards: drawn on a 250x390 canvas and scaled to fit */
+const CARD_LOOK = [
+  { ink: '#1C1A17', acc: '#7A7062', ic: '#7A7062', pad: 24, fm: 0, gloss: .55 },
+  { ink: '#1C1A17', acc: '#6E1F2A', ic: '#6E1F2A', pad: 26, fm: 10, gloss: .5 },
+  { ink: '#F2E6D2', acc: '#D9C3A0', ic: '#D9C3A0', pad: 30, fm: 14, gloss: .28 },
+  { ink: '#EADBB0', acc: '#E3C77E', ic: '#E9D18C', pad: 32, fm: 14, gloss: .3 },
+  { ink: '#E6E9EC', acc: '#E6E9EC', ic: '#E6E9EC', pad: 34, fm: 16, gloss: .32 }
+];
+const emCache = {};
+function emblemOf(w, e, rec) {
+  const all = LX.EMBLEMS || [], k = (w || '').toLowerCase();
+  if (rec && rec.em) { const x = all.find(m => m.id === rec.em); if (x) return x; }
+  if (emCache[k]) return emCache[k];
+  let id = (LX.EMBLEM_FOR || {})[k];
+  if (!id && e) {
+    const pl = plainOf(k), ss = e.s || [];
+    const parts = [[pl ? pl[0] : '', 3], [ss[0] ? ss[0][1] : '', 2], [ss.slice(1, 3).map(x => x[1]).join(' '), 1], [ss.slice(0, 3).flatMap(x => x[3] || []).join(' '), 1.5]]
+      .map(([t, wt]) => [(String(t).toLowerCase().match(/[a-z]+/g) || []), wt]);
+    let best = null, bs = 0;
+    for (const m of all) {
+      if (!m.k) continue; m._k = m._k || m.k.split(' ');
+      let sc = 0;
+      for (const [toks, wt] of parts) for (const kw of m._k) if (toks.some(t => kw.length >= 4 ? t.startsWith(kw) : t === kw)) sc += wt;
+      if (m._k.some(kw => kw.length >= 5 && k.startsWith(kw))) sc += 4;
+      if (sc > bs) { bs = sc; best = m; }
+    }
+    if (best) id = best.id;
   }
-  return `<div class="card f${li}" style="height:${h}px"><div class="in">
-    <div class="lv">${L}</div>
-    <div class="stack" style="gap:6px">
-      ${s ? `<div class="po">${esc(s[0])}</div>` : ''}
-      <div class="w" style="font-size:${wordSize(w, big)}px">${esc(w)}</div>
-      ${p ? `<div class="pr">${esc(p.r || '')}${p.est ? ' ≈' : ''}</div>` : ''}
-      ${big ? `<div class="d" style="margin-top:6px">${esc(def)}</div>` : ''}
+  const m = all.find(x => x.id === id) || all.find(x => x.id === 'fleur') || all[0];
+  if (e || id) emCache[k] = m;
+  return m;
+}
+const emSVG = (m, size, color) => m ? `<svg width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true" style="color:${color}"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${m.s}</g></svg>` : '';
+function collectorNo(w) {
+  const ks = Object.keys(treasury).sort((a, b) => treasury[a].a - treasury[b].a), i = ks.indexOf((w || '').toLowerCase());
+  return i < 0 ? '' : 'No. ' + String(i + 1).padStart(3, '0');
+}
+function lcWordSize(w, li) {
+  const b = [44, 44, 40, 36, 50][li], n = w.length;
+  return n <= 8 ? b : n <= 11 ? b - 6 : n <= 14 ? Math.round(b * .7) : n <= 17 ? Math.round(b * .6) : Math.round(b * .5);
+}
+const pipsHTML = (n, c) => Array.from({ length: 5 }, (_, i) => `<i style="border-color:${c};background:${i < n ? c : 'transparent'}"></i>`).join('');
+function cardHTML(w, e, rec, h = 450) {
+  const li = lvOf(rec), L = LX.CARD_LEVELS[li].n, K = CARD_LOOK[li];
+  const s = e && e.s ? e.s[0] : null, p = pronOf(w, e), def = shortDef(w, e), os = originShort(e, w);
+  const sc = h / 390, wd = Math.round(250 * sc), em = emblemOf(w, e, rec), no = rec && treasury[w.toLowerCase()] ? collectorNo(w) : '';
+  return `<div class="lcard lc${li}" style="width:${wd}px;height:${h}px;border-radius:${Math.round(14 * sc)}px"><div class="lin" style="transform:scale(${sc.toFixed(4)})">
+    <div class="lsurf"><div class="lbg"><svg class="lframe" viewBox="0 0 250 390" preserveAspectRatio="none" aria-hidden="true">${(LX.FRAMES || [])[li] || ''}</svg></div></div>
+    <div class="lbody" style="padding:${K.pad + 2}px ${K.pad}px ${K.pad + 4}px;color:${K.ink}">
+      <div class="lhead"><span class="llv" style="color:${K.acc};letter-spacing:${li === 4 ? 1.6 : 2.4}px">${esc(L)}</span><span class="lpips">${pipsHTML(li + 1, K.acc)}</span></div>
+      <div class="lmid">${emSVG(em, [34, 36, 38, 40, 44][li], K.ic)}
+        ${s ? `<span class="lpos" style="color:${K.acc}">${esc(s[0])}</span>` : ''}
+        <span class="lw lw${li}" style="font-size:${lcWordSize(w, li)}px">${esc(w)}</span>
+        ${p ? `<span class="lpr" style="color:${K.acc}">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}
+        ${def ? `<span class="ld">${esc(def)}</span>` : ''}</div>
+      <div class="lfoot" style="margin:0 ${K.fm}px;color:${K.acc};border-top-color:${K.acc}55"><span class="lo">${os || '&nbsp;'}</span><span>${no}</span></div>
     </div>
-    <div class="o">${os}</div>
-  </div><div class="shine"></div></div>`;
+    <div class="lgloss" style="--g:${K.gloss}"></div>
+  </div></div>`;
 }
 
 /* ---------- treasury ---------- */
@@ -641,9 +691,9 @@ async function openFull(words, i) {
   const el = document.createElement('div'); el.className = 'fs';
   let flipped = false;
   const draw = async () => {
-    const w = words[i], e = await Dict.get(w), rec = treasury[w] || { c: 0, m: 0, a: Date.now() };
-    const li = lvlIdx(rec.c), nxt = LX.CARD_LEVELS[li + 1];
-    const prog = nxt ? Math.round(((rec.c - LX.CARD_LEVELS[li].at) / (nxt.at - LX.CARD_LEVELS[li].at)) * 100) : 100;
+    const w = words[i], e = await Dict.get(w), rec = treasury[w] || { c: 0, m: 0, a: Date.now(), lv: 0, up: Date.now() };
+    const li = lvOf(rec), as = ascState(rec), em = emblemOf(w, e, rec);
+    const fh = Math.min(520, Math.round(innerHeight * 0.72), Math.round(Math.min(340, innerWidth * 0.88) / 0.641));
     const o = originText(w, e);
     const syn = e ? [...new Set(e.s.slice(0, 3).flatMap(s => s[3] || []))].filter(x => x !== w).slice(0, 6) : [];
     const ant = e ? [...new Set(e.s.slice(0, 3).flatMap(s => s[4] || []))].filter(x => x !== w).slice(0, 5) : [];
@@ -651,11 +701,14 @@ async function openFull(words, i) {
     try { await Pool.load(); const r = Pool.map.get(w); if (r && r[3] >= 0) fam = (Pool.byRoot.get(r[3]) || []).filter(x => x !== w).slice(0, 6); } catch { }
     const acc = rec.c + rec.m ? Math.round(rec.c / (rec.c + rec.m) * 100) + '%' : '—';
     el.innerHTML = `<div class="stage"><div class="flip${flipped ? ' back' : ''}" id="flip">
-        <div class="face f">${cardHTML(w, e, rec, Math.min(520, Math.round(innerHeight * 0.72)))}</div>
+        <div class="face f">${cardHTML(w, e, rec, fh)}</div>
         <div class="face b"><div class="card backface" style="height:100%">
           <div class="row" style="justify-content:space-between"><h3>${esc(w)}</h3><button class="speak" style="border-color:#1C1A17;color:#1C1A17" id="fsp" aria-label="Hear it">${ICON.speak}</button></div>
-          <div><div class="k">${esc(LX.CARD_LEVELS[li].n)}${nxt ? ' · ' + (nxt.at - rec.c) + ' more correct to ' + nxt.n : ' · highest level'}</div><div class="bar"><i style="width:${Math.max(4, prog)}%"></i></div></div>
-          <div class="grid3"><div class="stat"><b>${rec.c}</b><span>correct</span></div><div class="stat"><b>${rec.m}</b><span>missed</span></div><div class="stat"><b>${acc}</b><span>accuracy</span></div></div>
+          ${treasury[w] ? `<div class="ascbox"><div class="k">Ascension · ${esc(LX.CARD_LEVELS[li].n)}</div><div class="apips">${pipsHTML(li + 1, '#8C2A37')}</div>
+            <div class="v serif" style="font-size:17px;line-height:1.35">${ascLine(as)}</div>
+            ${!as.max ? `<button class="btn${as.ready ? '' : ' ghost'}" id="ascB" style="height:44px;margin-top:10px${as.ready ? '' : ';color:#6B6358;border-color:#CFC5B2'}">${as.ready ? 'Begin the Ascension Trial' : 'Resting · ' + waitText(as.at)}</button>` : ''}</div>` : ''}
+          <div class="grid3"><div class="stat"><b>${rec.c}</b><span>correct in practice</span></div><div class="stat"><b>${rec.m}</b><span>missed</span></div><div class="stat"><b>${acc}</b><span>accuracy</span></div></div>
+          ${treasury[w] ? `<div class="row emrow" style="gap:12px;align-items:center"><span class="emchip">${emSVG(em, 30, '#1C1A17')}</span><div style="flex:1;min-width:0"><div class="k">Emblem${rec.em ? ' · your choice' : ''}</div><div class="v">${esc(em.n)} — ${esc(em.t)}</div></div><button class="chipbtn" id="emB">Change</button></div>` : ''}
           ${plainOf(w) ? `<div><div class="k">Plain meaning</div><div class="v serif" style="font-size:18px;line-height:1.35">${esc(plainOf(w)[0])}</div><div class="v serif it" style="font-size:16px;color:#4A443C;margin-top:4px">“${esc(plainOf(w)[1])}”</div></div>` : ''}
           ${e && e.s.length ? `<div><div class="k">${plainOf(w) ? 'Dictionary meanings' : 'All meanings'}</div><div class="v">${e.s.slice(0, 4).map((s, k) => `${k + 1}. <i>${esc(s[0])}</i> — ${esc(endDot(s[1]))}`).join('<br>')}</div></div>` : ''}
           ${o ? `<div><div class="k">Origin</div><div class="v serif" style="font-size:16px">${o.html}</div></div>` : ''}
@@ -668,11 +721,15 @@ async function openFull(words, i) {
           <button class="btn ghost" id="rm" style="height:44px;color:#6B6358;border-color:#CFC5B2">Remove from Treasury</button>
         </div></div>
       </div></div>
-      <div class="tools"><button class="iconbtn" id="pv" aria-label="Previous card">${ICON.back}</button><button class="iconbtn" id="fl" aria-label="Flip card">${ICON.flip}</button><button class="iconbtn" id="nx" aria-label="Next card">${ICON.next}</button><button class="iconbtn" id="cl" aria-label="Close">${ICON.close}</button></div>
+      <div class="tools"><button class="iconbtn" id="pv" aria-label="Previous card">${ICON.back}</button><button class="iconbtn" id="fl" aria-label="Flip card">${ICON.flip}</button>${treasury[w] && !as.max ? `<button class="iconbtn${as.ready ? ' ascready' : ''}" id="asc" aria-label="Ascension Trial">${ICON.ascend}</button>` : ''}<button class="iconbtn" id="nx" aria-label="Next card">${ICON.next}</button><button class="iconbtn" id="cl" aria-label="Close">${ICON.close}</button></div>
       <div class="tip">Tap the card to flip · swipe for the next</div>`;
     $('#pv', el).disabled = i === 0; $('#pv', el).style.opacity = i === 0 ? .3 : 1;
     $('#nx', el).disabled = i === words.length - 1; $('#nx', el).style.opacity = i === words.length - 1 ? .3 : 1;
     $('#fsp', el).onclick = ev => { ev.stopPropagation(); speak(w); };
+    const tryAsc = ev => { ev.stopPropagation(); const st = ascState(treasury[w]); if (!st.ready) { toast(`“${w}” is resting. Its trial opens ${waitText(st.at)}.`); return; } ascendTrial(w, () => draw()); };
+    const ab = $('#asc', el); if (ab) ab.onclick = tryAsc;
+    const ab2 = $('#ascB', el); if (ab2) ab2.onclick = tryAsc;
+    const eb = $('#emB', el); if (eb) eb.onclick = ev => { ev.stopPropagation(); pickEmblem(w, e, () => draw()); };
     const note = $('#note', el); note.onclick = ev => ev.stopPropagation();
     note.oninput = () => { if (treasury[w]) { treasury[w].note = note.value; save.treasury(); } };
     $('#rm', el).onclick = ev => { ev.stopPropagation(); if (confirm('Remove “' + w + '” from your Treasury?')) { unkeep(w); closeTop(); if (tab === 'treasury') renderTreasury(); } };
@@ -680,7 +737,7 @@ async function openFull(words, i) {
   };
   const flip = () => { flipped = !flipped; $('#flip', el).classList.toggle('back', flipped); };
   el.addEventListener('click', ev => {
-    const t = ev.target.closest('button,textarea'); if (t && t.id !== 'fl') { if (t.id === 'pv' && i > 0) { i--; flipped = false; draw(); } else if (t.id === 'nx' && i < words.length - 1) { i++; flipped = false; draw(); } else if (t.id === 'cl') closeTop(); return; }
+    const t = ev.target.closest('button,textarea'); if (t && ['asc', 'ascB', 'emB'].includes(t.id)) return; if (t && t.id !== 'fl') { if (t.id === 'pv' && i > 0) { i--; flipped = false; draw(); } else if (t.id === 'nx' && i < words.length - 1) { i++; flipped = false; draw(); } else if (t.id === 'cl') closeTop(); return; }
     if (t && t.id === 'fl') { flip(); return; }
     if (ev.target.closest('.stage')) flip();
   });
@@ -699,7 +756,7 @@ async function openFull(words, i) {
 let tiltOn = false;
 function onTilt(ev) {
   const g = Math.max(-30, Math.min(30, ev.gamma || 0)), b = Math.max(-30, Math.min(30, (ev.beta || 45) - 45));
-  $$('.fs .shine').forEach(s => { s.style.setProperty('--sx', (50 + g * 1.4) + '%'); s.style.setProperty('--sy', (40 + b * 1.4) + '%'); s.style.setProperty('--sp', (40 + g * 1.6) + '%'); });
+  $$('.fs .shine, .fs .lgloss').forEach(s => { s.style.setProperty('--sx', (50 + g * 1.4) + '%'); s.style.setProperty('--sy', (40 + b * 1.4) + '%'); s.style.setProperty('--sp', (40 + g * 1.6) + '%'); });
 }
 function onPointer(ev) {
   const r = innerWidth, h = innerHeight; onTilt({ gamma: (ev.clientX / r - .5) * 60, beta: 45 + (ev.clientY / h - .5) * 60 });
@@ -784,7 +841,7 @@ async function renderToday() {
   const wd = plan.wotd && treasury[plan.wotd] ? plan.wotd : null;
   const wb = $('#wotd');
   if (wd) {
-    const e = await Dict.get(wd), p = pronOf(wd, e), li = lvlIdx(treasury[wd].c), s = e && e.s ? e.s[0] : null;
+    const e = await Dict.get(wd), p = pronOf(wd, e), li = lvOf(treasury[wd]), s = e && e.s ? e.s[0] : null;
     wb.innerHTML = `<article class="hero2" style="${levelStyle(li)}"><div class="frame"></div>
       <div class="hk">Word of the day</div><div class="hrule"></div>
       <button class="hw" id="wopen"><span class="hword" style="font-size:${Math.min(52, wordSize(wd, true) + 8)}px">${esc(wd)}</span>${p ? `<span class="hpron">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}<span class="hmean">${esc(shortDef(wd, e))}</span></button>
@@ -850,6 +907,7 @@ function renderLexis() {
   view.innerHTML = `<div class="micro" style="color:var(--acc)">Lexis</div><h1 class="big" style="margin-top:6px">The practice room.</h1>
     <p class="serif it muted" style="font-size:17px;margin:6px 0 0">The best way to remember a word is to use it.</p>
     <section class="strip"><div><b>${n}</b><span>words</span></div><div><b>${st}</b><span>day streak</span></div><div><b>${acc}</b><span>accuracy</span></div></section>
+    ${ascSectionHTML()}
     <div class="micro" style="margin:28px 0 12px">Suggested for today</div>
     <button class="feat ex7" data-x="${sg.id}" style="${coverStyle(EX_LOOK[sg.id][0])}"><span class="spine"></span>
       <span class="row" style="justify-content:space-between;align-items:flex-start;width:100%"><span class="ccount">${romans[si]} · ${sg.id === 'synonym' ? 'timed · ' : ''}up to 10 questions</span><span class="cicon big">${EX_ICON(sg.id).replace('width="18" height="18"', 'width="24" height="24"')}</span></span>
@@ -859,8 +917,17 @@ function renderLexis() {
     <div class="stack" style="gap:8px">${EXERCISES.map((x, i) => `<button class="spinebar ex7" data-x="${x.id}" style="${coverStyle(EX_LOOK[x.id][0])}"><span class="spine"></span><span class="snum">${romans[i]}</span>
       <span class="stack" style="gap:2px;flex:1;min-width:0;text-align:left"><span class="sname">${x.n}</span><span class="sdesc">${x.short}</span></span>${x.id === 'synonym' ? '<span class="sbadge">Timed</span>' : ''}<span class="sicon">${EX_ICON(x.id)}</span></button>`).join('')}</div>
     ${n < 1 ? '<p class="muted" style="font-size:13px;margin-top:16px">Keep at least one word in your Treasury to begin.</p>' : ''}
-    <p class="muted" style="font-size:12px;line-height:1.55;margin:20px 2px 0">Every correct answer in I–IV and VI raises that word’s card: Acquaintance at 3, Familiar at 8, Fluent at 15, Silver-Tongued at 30.</p>`;
+    <p class="muted" style="font-size:12px;line-height:1.55;margin:20px 2px 0">These exercises are practice: they sharpen your memory but never level a card. A card rises only by passing its own Ascension Trial.</p>`;
+  $$('.ascgo').forEach(b => b.onclick = () => ascendTrial(b.dataset.w, () => { if (tab === 'lexis') renderLexis(); }));
   $$('.ex7').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } stats.exUse = stats.exUse || {}; stats.exUse[b.dataset.x] = (stats.exUse[b.dataset.x] || 0) + 1; save.stats(); b.dataset.x === 'synonym' ? synonymSetup() : startEx(b.dataset.x); });
+}
+function ascSectionHTML() {
+  const ws = Object.keys(treasury); if (!ws.length) return '';
+  const st = ws.map(w => ({ w, a: ascState(treasury[w]) })).filter(x => !x.a.max);
+  const ready = st.filter(x => x.a.ready).sort((a, b) => b.a.lv - a.a.lv || treasury[a.w].a - treasury[b.w].a);
+  if (!st.length) return `<div class="micro" style="margin:28px 0 12px">Ascension</div><div class="ascnone serif it">Every card in your Treasury is Silver-Tongued. Remarkable.</div>`;
+  if (!ready.length) { const n = st.sort((a, b) => a.a.at - b.a.at)[0]; return `<div class="micro" style="margin:28px 0 12px">Ascension</div><div class="ascnone"><span class="serif it">No card is ready for its trial yet.</span><span class="muted">Next: “${esc(n.w)}”, ${waitText(n.a.at)}.</span></div>`; }
+  return `<div class="micro" style="margin:28px 0 12px">Ready to ascend · ${ready.length}</div><div class="ascrow">${ready.slice(0, 8).map(x => `<button class="ascgo lc${x.a.lv}" data-w="${esc(x.w)}"><span class="ag-lv">${LX.CARD_LEVELS[x.a.lv].n} → ${x.a.to}</span><span class="ag-w">${esc(x.w)}</span><span class="ag-n">${x.a.n} questions ${ICON.arrow}</span></button>`).join('')}</div>`;
 }
 function pickForPractice(k, needEx) {
   const now = Date.now();
@@ -897,14 +964,11 @@ async function distractorWords(k, avoid, near) {
 }
 function recordAnswer(w, ok) {
   const r = treasury[w]; if (!r) return;
-  const before = lvlIdx(r.c);
   if (ok) { r.c = (r.c || 0) + 1; stats.ok++; stats.run = (stats.run || 0) + 1; stats.best = Math.max(stats.best || 0, stats.run); }
   else { r.m = (r.m || 0) + 1; stats.bad++; stats.run = 0; }
   r.s = Date.now();
   const d = ymd(); if (!stats.days.includes(d)) { stats.days.push(d); stats.days = stats.days.slice(-400); }
   save.treasury(); save.stats(); checkSeals();
-  const after = lvlIdx(r.c);
-  if (after > before) setTimeout(() => toast(`“${w}” is now ${LX.CARD_LEVELS[after].n}`), 700);
 }
 async function startEx(id) {
   const X = EXERCISES.find(x => x.id === id);
@@ -987,6 +1051,162 @@ async function startEx(id) {
   };
   if (id === 'sentence') qs.splice(5);
   ask();
+}
+
+/* ---------- Ascension Trial: the only way a card rises ---------- */
+const REST_DAYS = [1, 2, 3, 5];   // days a card rests at its level before the next trial
+const FAIL_DAYS = [1, 1, 2, 3];   // wait after a lost trial
+const TRIAL_PLAN = [
+  ['meaning', 'reverse', 'synonym'],
+  ['meaning', 'synonym', 'blank', 'reverse'],
+  ['meaning', 'synonym', 'blank', 'spell', 'reverse'],
+  ['meaning', 'synonym', 'antonym', 'blank', 'spell', 'origin', 'reverse']
+];
+function ascState(rec) {
+  const lv = lvOf(rec); if (!rec || lv >= 4) return { max: true, lv };
+  const rest = (rec.up || rec.a || 0) + REST_DAYS[lv] * 864e5, fail = rec.fail ? rec.fail + FAIL_DAYS[lv] * 864e5 : 0, at = Math.max(rest, fail);
+  return { lv, at, ready: Date.now() >= at, failed: fail > rest && Date.now() < fail, n: TRIAL_PLAN[lv].length, to: LX.CARD_LEVELS[lv + 1].n };
+}
+function waitText(at) {
+  const ms = at - Date.now(); if (ms <= 0) return 'now';
+  const h = Math.ceil(ms / 36e5); if (h < 24) return 'in ' + h + ' hour' + (h > 1 ? 's' : '');
+  const d = Math.ceil(ms / 864e5); return d === 1 ? 'tomorrow' : d < 7 ? 'in ' + d + ' days' : 'on ' + new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+}
+function ascLine(as) {
+  if (as.max) return 'The highest honour. This card is Silver-Tongued.';
+  if (as.ready) return `Ready to rise to <b>${as.to}</b>: a trial of ${as.n} questions. One mistake ends it.`;
+  return as.failed ? `The last trial was lost. It may try again ${waitText(as.at)}.` : `Resting before its trial to <b>${as.to}</b>. Ready ${waitText(as.at)}.`;
+}
+const ROOT_LANGS = ['Ancient Greek', 'Late Latin', 'Medieval Latin', 'New Latin', 'Latin', 'Greek', 'Old French', 'Anglo-Norman', 'Middle French', 'French', 'Old English', 'Middle English', 'Old Norse', 'Middle Dutch', 'Dutch', 'Old High German', 'German', 'Italian', 'Spanish', 'Portuguese', 'Arabic', 'Persian', 'Sanskrit', 'Hindi', 'Hebrew', 'Japanese', 'Chinese', 'Turkish', 'Russian', 'Malay', 'Nahuatl', 'Old Irish', 'Scottish Gaelic', 'Yiddish'];
+/* the oldest language named in a word's history: the last one in "from X, from Y, from Z" */
+function rootLang(e) {
+  const txt = String((e && e.et) || '').slice(0, 400), seen = new Set(); let best = null, at = -1;
+  for (const L of ROOT_LANGS) { const re = new RegExp('\\b' + L + '\\b', 'g'); let m; while ((m = re.exec(txt))) { const inside = ROOT_LANGS.some(o => o !== L && o.includes(L) && txt.slice(Math.max(0, m.index - 12), m.index + L.length + 12).includes(o)); if (inside) continue; seen.add(L); if (m.index > at) { at = m.index; best = L; } } }
+  ((e && e.o) || []).forEach(o => { if (o[1] && o[1] !== 'English') { seen.add(o[1]); if (!best) best = o[1]; } });
+  const fam = { 'Late Latin': 'Latin', 'Medieval Latin': 'Latin', 'New Latin': 'Latin', 'Ancient Greek': 'Greek', 'Anglo-Norman': 'French', 'Middle French': 'French', 'Old French': 'French' };
+  return best ? { ans: best, seen: new Set([...seen].flatMap(x => [x, fam[x] || x])) } : null;
+}
+const plainTxt = h => String(h || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+async function trialQuestions(w, e, lv) {
+  const near = x => x.slice(0, 4) === w.slice(0, 4) && Math.abs(x.length - w.length) <= 2;   // skip mere spelling variants (candor / candour)
+  const syn = synsOf(e, w).filter(x => !near(x)), ant = [...new Set((e.s || []).slice(0, 3).flatMap(s => s[4] || []))].filter(oneWord);
+  const banned = new Set([w, ...syn, ...ant]);
+  const def = shortDef(w, e).replace(/\.$/, ''), p = pronOf(w, e);
+  const wordQ = (lead, extra) => `<div class="stack" style="align-items:center;gap:8px"><div class="muted" style="font-size:14px">${lead}</div><div class="qword">${esc(w)}</div>${extra || (p ? `<div class="muted" style="font-size:14px">${esc(p.r || '')}</div>` : '')}</div>`;
+  const others = async k => (await distractorWords(k + 6, w)).filter(x => !banned.has(x)).slice(0, k);
+  const re = new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\w*', 'i');
+  const pl = plainOf(w);
+  const sent = ((treasury[w] || {}).sent || []).find(x => re.test(x)) || (pl && re.test(pl[1]) ? pl[1] : null) || (e.s || []).flatMap(s => s[2] || []).find(x => re.test(x));
+  const root = rootLang(e);
+  const make = {
+    meaning: async () => ({ prompt: wordQ('What does it mean?'), options: shuffle([def, ...(await distractorDefs(3, w))]), correct: def }),
+    reverse: async () => ({ prompt: `<div class="stack" style="gap:8px"><div class="muted" style="font-size:14px">Which word means…</div><div class="serif" style="font-size:26px;line-height:1.25">${esc(def)}.</div></div>`, options: shuffle([w, ...(await others(3))]), correct: w, serif: true }),
+    synonym: async () => { if (!syn.length) return null; const a = syn[Math.floor(Math.random() * Math.min(3, syn.length))]; return { prompt: wordQ('Which word means the same?'), options: shuffle([a, ...(await others(3))]), correct: a, serif: true }; },
+    antonym: async () => { if (!ant.length) return null; const a = ant[0]; return { prompt: wordQ('Which word means the opposite?'), options: shuffle([a, ...(await others(3))]), correct: a, serif: true }; },
+    blank: async () => sent ? { prompt: `<div class="stack" style="gap:8px"><div class="muted" style="font-size:14px">Complete the sentence</div><div class="serif it" style="font-size:24px;line-height:1.3">“${esc(sent.replace(re, '_____'))}”</div></div>`, options: shuffle([w, ...(await others(3))]), correct: w, serif: true } : null,
+    spell: async () => ({ spell: true }),
+    origin: async () => {
+      if (!root) return null;
+      const fam = { 'Late Latin': 'Latin', 'Medieval Latin': 'Latin', 'New Latin': 'Latin', 'Ancient Greek': 'Greek', 'Anglo-Norman': 'French', 'Middle French': 'French', 'Old French': 'French' };
+      const pool = ['Latin', 'Ancient Greek', 'Old French', 'Old English', 'Old Norse', 'Arabic', 'Italian', 'Spanish', 'German', 'Dutch', 'Sanskrit', 'Persian', 'Hebrew', 'Japanese'];
+      // histories are often cut short (Old French may itself come from Latin), so never offer a close relative as a wrong answer
+      const core = ['Latin', 'Greek', 'French', 'Old English', 'Middle English'];
+      const fa = fam[root.ans] || root.ans; const safe = core.includes(fa) ? pool.filter(L => !core.includes(fam[L] || L) && !['Italian', 'Spanish'].includes(L)) : pool;
+      const outs = shuffle(safe.filter(L => !root.seen.has(L) && !root.seen.has(fam[L] || L) && (fam[L] || L) !== (fam[root.ans] || root.ans))).slice(0, 3);
+      if (outs.length < 3) return null;
+      return { prompt: wordQ('Which language is it rooted in?', '<div class="muted" style="font-size:13px">its oldest known root</div>'), options: shuffle([root.ans, ...outs]), correct: root.ans, serif: true };
+    }
+  };
+  const fallback = { synonym: 'meaning', antonym: 'reverse', blank: 'spell', origin: 'reverse' };
+  const qs = [];
+  for (const t of TRIAL_PLAN[lv]) { let q = await make[t](); if (!q && fallback[t]) q = await make[fallback[t]](); if (q) qs.push(q); }
+  return qs;
+}
+async function ascendTrial(w, onDone) {
+  const rec = treasury[w]; if (!rec) return;
+  const st = ascState(rec);
+  if (st.max) { toast('This card is already Silver-Tongued.'); return; }
+  if (!st.ready) { toast(`“${w}” is resting. Its trial opens ${waitText(st.at)}.`); return; }
+  const e = await Dict.get(w); if (!e) { toast('This word is still loading. Try again in a moment.'); return; }
+  exBusy++;
+  const el = overlay('Ascension Trial', '<div class="hint" style="margin-top:40vh">Preparing…</div>', { onClose: () => { endBusy(); if (onDone) onDone(); } });
+  el.classList.add('trial');
+  const body = $('.ov-body', el), from = LX.CARD_LEVELS[st.lv].n, to = st.to, lv = st.lv;
+  const qs = await trialQuestions(w, e, lv);
+  const ch = Math.min(300, Math.round(innerHeight * 0.4));
+  body.innerHTML = `<div class="stack" style="align-items:center;text-align:center;gap:14px;margin-top:6px">
+    <div class="micro" style="color:var(--acc)">${from} → ${to}</div>
+    <div class="tcard">${cardHTML(w, e, rec, ch)}</div>
+    <h1 class="big" style="font-size:32px;margin:6px 0 0">The Ascension Trial</h1>
+    <p class="muted" style="font-size:15px;line-height:1.5;margin:0;max-width:320px">${qs.length} questions on “${esc(w)}”. Answer every one correctly and the card rises to <b style="color:var(--ink)">${to}</b>. One mistake ends the trial, and the card must wait ${FAIL_DAYS[lv]} day${FAIL_DAYS[lv] > 1 ? 's' : ''} to try again.</p>
+    <button class="btn" id="tbeg" style="margin-top:6px">Begin</button></div>`;
+  let qi = 0;
+  const head = () => `<div class="tsteps">${qs.map((_, k) => `<i class="${k < qi ? 'done' : k === qi ? 'now' : ''}"></i>`).join('')}</div><div class="micro" style="text-align:center;margin-top:8px">Question ${qi + 1} of ${qs.length}</div>`;
+  const lose = () => {
+    rec.fail = Date.now(); save.treasury();
+    stats.trials = (stats.trials || 0) + 1; save.stats();
+    const s2 = ascState(rec);
+    body.innerHTML = `<div class="stack" style="align-items:center;text-align:center;gap:14px;margin-top:6px"><div class="micro">The trial is lost</div>
+      <div class="tcard lost">${cardHTML(w, e, rec, ch)}</div>
+      <div class="serif" style="font-size:36px;line-height:1.15">Not this time.</div>
+      <p class="muted" style="font-size:15px;line-height:1.5;margin:0;max-width:300px">“${esc(w)}” remains ${from}. It may face the trial again ${waitText(s2.at)}. Practise it in Lexis until then.</p>
+      <button class="btn" id="tdone" style="margin-top:8px">Return</button></div>`;
+    $('#tdone', body).onclick = () => closeTop();
+  };
+  const win = async () => {
+    rec.lv = lv + 1; rec.up = Date.now(); delete rec.fail; save.treasury();
+    stats.trials = (stats.trials || 0) + 1; stats.ascended = (stats.ascended || 0) + 1;
+    const d = ymd(); if (!stats.days.includes(d)) { stats.days.push(d); stats.days = stats.days.slice(-400); }
+    save.stats(); checkSeals();
+    body.innerHTML = `<div class="stack" style="align-items:center;text-align:center;gap:14px;margin-top:6px"><div class="micro" style="color:var(--acc)">Ascended</div>
+      <div class="tcard rise">${cardHTML(w, e, rec, ch)}</div>
+      <div class="serif" style="font-size:34px;line-height:1.15;margin-top:6px">“${esc(w)}” is now ${to}.</div>
+      <p class="muted" style="font-size:14px;line-height:1.5;margin:0;max-width:300px">${rec.lv >= 4 ? 'The highest honour a word can earn.' : 'Its next trial opens ' + waitText(ascState(rec).at) + '.'}</p>
+      <button class="btn" id="tdone" style="margin-top:6px">Splendid</button></div>`;
+    if (navigator.vibrate) { try { navigator.vibrate([20, 40, 30, 40, 60]); } catch { } }
+    $('#tdone', body).onclick = () => closeTop();
+  };
+  const next = () => { qi++; qi < qs.length ? ask() : win(); };
+  const ask = () => {
+    const q = qs[qi];
+    if (q.spell) {
+      body.innerHTML = head() + `<div class="stack" style="gap:20px;margin-top:34px;align-items:center;text-align:center"><div class="muted" style="font-size:14px">Listen, then write the word</div>
+        <button class="speak" id="play" style="width:72px;height:72px;border-radius:36px" aria-label="Play the word">${ICON.speak}</button>
+        <input class="typed" id="typed" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Type the word">
+        <div class="feedback" id="fb"></div><button class="btn" id="check">Check</button></div>`;
+      const play = () => speak(w); $('#play', body).onclick = play; setTimeout(play, 300);
+      const inp = $('#typed', body);
+      const check = () => {
+        if (body.dataset.lock) return; const v = inp.value.trim().toLowerCase(); if (!v) return; body.dataset.lock = 1;
+        const ok = v === w.toLowerCase();
+        $('#fb', body).innerHTML = ok ? '<span style="color:#2F6B4F">Correct.</span>' : `It’s spelled <b class="serif" style="font-size:20px">${esc(w)}</b>`;
+        setTimeout(() => { delete body.dataset.lock; ok ? next() : lose(); }, ok ? 800 : 2000);
+      };
+      $('#check', body).onclick = check; inp.onkeydown = ev => { if (ev.key === 'Enter') check(); };
+      setTimeout(() => inp.focus(), 350);
+      return;
+    }
+    window.__lxAns = q.correct;
+    body.innerHTML = head() + `<div class="stack" style="gap:22px;margin-top:30px">${q.prompt}<div class="stack" style="gap:10px" id="opts">${q.options.map((o, k) => `<button class="opt${q.serif ? ' serifopt' : ''}" data-k="${k}"><span class="key">${'ABCD'[k]}</span><span>${esc(o)}</span></button>`).join('')}</div></div>`;
+    $$('#opts .opt', body).forEach(b => b.onclick = () => {
+      if (body.dataset.lock) return; body.dataset.lock = 1;
+      const ok = q.options[+b.dataset.k] === q.correct;
+      b.classList.add(ok ? 'ok' : 'no');
+      if (!ok) { const r = $$('#opts .opt', body).find(x => q.options[+x.dataset.k] === q.correct); if (r) r.classList.add('ok'); }
+      setTimeout(() => { delete body.dataset.lock; ok ? next() : lose(); }, ok ? 650 : 1500);
+    });
+  };
+  $('#tbeg', body).onclick = () => ask();
+}
+function pickEmblem(w, e, onDone) {
+  const rec = treasury[w]; if (!rec) return;
+  const auto = (() => { const k = w.toLowerCase(); delete emCache[k]; const m = emblemOf(w, e, null); return m; })();
+  const cur = emblemOf(w, e, rec);
+  const el = overlay('Choose an emblem', `<p class="serif it muted" style="font-size:16px;margin:4px 0 16px">For “${esc(w)}”. Pick the one that fits its meaning best.</p>
+    <button class="emopt wide${!rec.em ? ' on' : ''}" data-id="">${emSVG(auto, 30, 'currentColor')}<span><b>Automatic</b><small>${esc(auto.n)} — ${esc(auto.t)}</small></span></button>
+    <div class="emgrid">${LX.EMBLEMS.map(m => `<button class="emopt${rec.em === m.id ? ' on' : ''}" data-id="${m.id}" aria-label="${esc(m.n)}">${emSVG(m, 30, 'currentColor')}<small>${esc(m.n)}</small></button>`).join('')}</div>`, { onClose: onDone });
+  $$('.emopt', el).forEach(b => b.onclick = () => { const id = b.dataset.id; if (id) rec.em = id; else delete rec.em; save.treasury(); closeTop(); toast(id ? 'Emblem changed' : 'Emblem set to automatic'); });
+  void cur;
 }
 
 /* ---------- synonym match (timed) ---------- */
@@ -1078,7 +1298,7 @@ function avatarHTML(size) {
 const FIN = [['#FBF8F1', '#D2C8B4'], ['#E4D9C3', '#C7B89D'], ['#3B2418', '#3B2418'], ['#14261F', '#B8954A'], ['#0D0D0F', '#8E959C']];
 function renderProfile() {
   const rk = rankOf(), tw = Object.values(treasury);
-  const counts = [0, 0, 0, 0, 0]; tw.forEach(r => counts[lvlIdx(r.c)]++);
+  const counts = [0, 0, 0, 0, 0]; tw.forEach(r => counts[lvOf(r)]++);
   const acc = stats.ok + stats.bad ? Math.round(stats.ok / (stats.ok + stats.bad) * 100) + '%' : '—';
   const off = store.get('offline3', { done: 0, total: 0 });
   view.innerHTML = `
@@ -1086,7 +1306,7 @@ function renderProfile() {
       <div class="serif it" style="font-size:16px;color:var(--acc)">${rk.name} · rank ${rk.i + 1} of 5</div></div>
       <button class="iconbtn" id="edit" style="margin-left:auto" aria-label="Edit profile">${ICON.edit}</button></section>
     <section class="stats" style="margin-top:18px"><div><b>${tw.length}</b><span>words kept</span></div><div><b>${streak()}</b><span>day streak</span></div><div><b>${acc}</b><span>accuracy</span></div></section>
-    ${rk.next ? `<p class="muted" style="font-size:12px;margin:10px 0 0">${rk.next - rk.score} lexicon points to ${LX.RANKS[rk.i + 1]}. Each card earns points as it levels up.</p>` : ''}
+    ${rk.next ? `<p class="muted" style="font-size:12px;margin:10px 0 0">${rk.next - rk.score} lexicon points to ${LX.RANKS[rk.i + 1]}. Each card earns points as it ascends.</p>` : ''}
     <section class="sec"><div class="micro">Your collection</div>
       <div class="collbar">${tw.length ? counts.map((n, i) => n ? `<span style="flex-grow:${n};background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></span>` : '').join('') : ''}</div>
       <div class="legend">${LX.CARD_LEVELS.map((l, i) => `<div><i style="background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></i><span>${l.n}</span><b>${counts[i]}</b></div>`).join('')}</div></section>

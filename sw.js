@@ -1,6 +1,6 @@
 /* Lucent service worker: the app and the whole dictionary work offline. */
-const VERSION = 'lucent-v1.5.1';
-const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'plain.js', 'cats.js', 'seals.js', 'manifest.webmanifest',
+const VERSION = 'lucent-v1.6.0';
+const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'plain.js', 'cats.js', 'seals.js', 'frames.js', 'emblems.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
   'fonts/cormorant-garamond-latin-400-normal.woff2', 'fonts/cormorant-garamond-latin-400-italic.woff2', 'fonts/cormorant-garamond-latin-500-normal.woff2',
   'fonts/cormorant-garamond-latin-500-italic.woff2', 'fonts/cormorant-garamond-latin-600-normal.woff2', 'fonts/cormorant-garamond-latin-ext-400-normal.woff2',
