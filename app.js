@@ -1,8 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const WHATS_NEW = [
-  { v: '1.5.0', title: 'Today and Lexis, restyled', notes: ['Today now matches Discover: your word of the day shown in its card’s own material, a sleeker deck of new words, and Word Lore bound like a black book.', 'Lexis shows your stats at a glance, and each exercise is now a book on the shelf.'] },
+  { v: '1.5.1', title: 'A new home and practice room', notes: ['Today is redesigned: your word of the day framed like a book cover, three new words to swipe through, and Word Lore set like a page from a fine book.', 'Lexis is now a practice room: a suggested exercise for today, and every exercise stacked like book spines.'] },
   { v: '1.4.0', title: 'A new Discover', notes: ['Discover is redesigned: each category is now a bound book on your shelves, with a Word of the Moment to tempt you.', 'Recent look-ups sit just under the search bar, and the keyboard only opens when you tap it.', 'Plain meanings are now signed “Written in simple English by Lucent.”'] },
   { v: '1.3.1', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
   { v: '1.2.0', title: 'Clearer meanings', notes: ['A bigger dictionary: Wiktionary’s clearer meanings now sit alongside the old ones, which you can still open under “More meanings.”', 'Plain meanings: the first 400 words now have a simple-English meaning and example, written for Lucent. More arrive in future updates.', 'Many more words now have a confirmed pronunciation instead of an estimate (≈), and richer word origins.', 'New in Lexis: Synonym match — find the word that means the same, against a 10- or 5-second clock.', 'The dictionary refreshes once in the background (about 13 MB).'] },
@@ -772,11 +772,11 @@ async function renderToday() {
   const now = new Date(), h = now.getHours();
   const hello = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
   const date = (now.toLocaleDateString('en-GB', { weekday: 'long' }) + ' · ' + now.getDate() + ' ' + now.toLocaleDateString('en-GB', { month: 'long' })).toUpperCase();
+  const n = Object.keys(treasury).length, st = streak();
   view.innerHTML = `<div class="micro" style="color:var(--acc)">${esc(date)}</div><h1 class="big" style="margin-top:6px">${hello}, ${esc(profile ? profile.name : '')}.</h1>
-    <p class="serif it muted" style="font-size:17px;margin:6px 0 0">Today, in words.</p>
-    <div id="wotd"></div><div id="news"></div><div id="lore"></div>
-    <div class="micro" style="margin:28px 0 12px">Practice</div>
-    <button class="cta" id="toLex" style="${coverStyle('Ornate')}"><span class="spine"></span><span class="stack" style="gap:4px;text-align:left"><span class="cname" style="font-size:26px">Sharpen your tongue</span><span class="cex">Six ways to practise your Treasury words</span></span><span class="ctaarrow">${ICON.arrow}</span></button>`;
+    <div id="wotd" style="margin-top:20px"></div><div id="news"></div>
+    <button class="prow" id="toLex"><span class="picon">${EX_ICON('quill')}</span><span class="stack" style="gap:2px;flex:1;text-align:left"><span class="serif" style="font-size:21px;font-weight:500">Sharpen your tongue</span><span class="muted" style="font-size:12.5px">${n ? n + ' word' + (n > 1 ? 's' : '') + ' to practise' : 'Keep a word to begin'}${st ? ' · ' + st + '-day streak' : ''}</span></span><span class="muted" style="width:18px;height:18px">${ICON.next}</span></button>
+    <div id="lore"></div>`;
   $('#toLex').onclick = () => go('lexis');
   renderLore();
   let plan; try { plan = await todayPlan(); } catch { $('#news').innerHTML = '<p class="muted" style="margin-top:22px">Today’s words will appear once the library has downloaded.</p>'; return; }
@@ -785,53 +785,38 @@ async function renderToday() {
   const wb = $('#wotd');
   if (wd) {
     const e = await Dict.get(wd), p = pronOf(wd, e), li = lvlIdx(treasury[wd].c), s = e && e.s ? e.s[0] : null;
-    wb.innerHTML = `<div class="row" style="justify-content:space-between;align-items:baseline;margin:26px 0 12px"><div class="micro">Word of the day</div><div class="muted" style="font-size:12px">from your Treasury</div></div>
-      <article class="spot" style="${levelStyle(li)}"><div class="row" style="justify-content:space-between;align-items:center"><span class="stag">${LX.CARD_LEVELS[li].n}${s ? ' · ' + esc(s[0]) : ''}</span></div>
-        <button class="sw" id="wopen"><span class="sword">${esc(wd)}</span>${p ? `<span class="spron">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}<span class="smean">${esc(shortDef(wd, e))}</span></button>
-        <div class="row" style="gap:10px;margin-top:4px"><button class="spbtn" id="wcardb">${ICON.flip} Open card</button><button class="spbtn ghost" id="wsp">${ICON.speak} Hear it</button></div></article>`;
+    wb.innerHTML = `<article class="hero2" style="${levelStyle(li)}"><div class="frame"></div>
+      <div class="hk">Word of the day</div><div class="hrule"></div>
+      <button class="hw" id="wopen"><span class="hword" style="font-size:${Math.min(52, wordSize(wd, true) + 8)}px">${esc(wd)}</span>${p ? `<span class="hpron">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}<span class="hmean">${esc(shortDef(wd, e))}</span></button>
+      <div class="hfoot"><span class="hlvl">${LX.CARD_LEVELS[li].n}${s ? ' · ' + esc(s[0]) : ''}</span><span class="row" style="gap:8px"><button class="hbtn" id="wsp" aria-label="Hear it">${ICON.speak}</button><button class="hbtn" id="wcardb" aria-label="Open the card">${ICON.flip}</button></span></div></article>`;
     $('#wopen').onclick = () => openWord(wd);
     $('#wsp').onclick = () => speak(wd);
     $('#wcardb').onclick = () => { const ws = Object.keys(treasury).sort((a, b) => treasury[b].a - treasury[a].a); openFull(ws, Math.max(0, ws.indexOf(wd))); };
   } else {
-    wb.innerHTML = `<div class="micro" style="margin:26px 0 12px">Word of the day</div><article class="spot" style="${levelStyle(0)}"><span class="stag">Your first card</span><span class="smean" style="font-size:22px">Your first card is waiting.</span><span style="font-size:13px;opacity:.75">Keep a word below, and tomorrow it can return as your word of the day.</span></article>`;
+    wb.innerHTML = `<article class="hero2" style="${levelStyle(0)}"><div class="frame"></div><div class="hk">Word of the day</div><div class="hrule"></div>
+      <div class="hw"><span class="hword" style="font-size:38px">Your first card</span><span class="hmean">Keep one of today’s words below. Tomorrow it can return here as your word of the day.</span></div></article>`;
   }
   renderDeck(plan);
 }
 async function renderDeck(plan) {
   const box = $('#news'); if (!box) return;
-  const cur = plan.news[plan.i];
-  if (!cur) {
-    box.innerHTML = `<div class="micro" style="margin:28px 0 12px">Today’s new words</div><article class="spot" style="${levelStyle(1)}"><span class="stag">All three met</span><span class="smean" style="font-size:22px">That’s today’s three.</span><span style="font-size:13px;opacity:.75">New words arrive tomorrow, chosen around your Treasury. Want more now? Try a shelf in Discover.</span></article>`;
-    return;
-  }
-  const e = await Dict.get(cur.w), p = pronOf(cur.w, e), s = e ? e.s[0] : null;
-  const dots = plan.news.map((_, k) => `<i class="${k < plan.i ? 'done' : k === plan.i ? 'on' : ''}"></i>`).join('');
-  box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center;margin:28px 0 12px"><div class="micro">Today’s new words</div><div class="ndots">${dots}</div></div>
-    <div class="deck">${plan.i < plan.news.length - 2 ? '<div class="l2"></div>' : ''}${plan.i < plan.news.length - 1 ? '<div class="l1"></div>' : ''}
-      <button class="top" id="dtop"><span class="why">${cur.why}</span><span class="stack" style="gap:4px"><span class="sword" style="font-size:${Math.min(42, wordSize(cur.w, true))}px">${esc(cur.w)}</span>${p ? `<span class="muted" style="font-size:13px">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}</span><span class="smean" style="font-size:18px;margin:0">${esc(shortDef(cur.w, e))}</span></button></div>
-    <div class="deckbtns"><button class="pill ghost" id="dPass">${ICON.close} Pass</button><button class="pill" id="dKeep">${ICON.mark} Keep</button></div>`;
-  const next = (kept) => {
-    const top = $('#dtop'); top.style.transform = `translateX(${kept ? 120 : -120}%) rotate(${kept ? 8 : -8}deg)`; top.style.opacity = 0;
-    if (kept) keep(cur.w); else { passed.push(cur.w); save.passed(); }
-    plan.i++; store.set('daily', plan);
-    setTimeout(() => renderDeck(plan), 260);
-  };
-  $('#dKeep').onclick = () => next(true); $('#dPass').onclick = () => next(false);
-  const top = $('#dtop'); let sx = null, dx = 0;
-  top.onclick = () => { if (Math.abs(dx) < 8) openWord(cur.w); };
-  top.addEventListener('touchstart', ev => { sx = ev.touches[0].clientX; dx = 0; top.style.transition = 'none'; }, { passive: true });
-  top.addEventListener('touchmove', ev => { if (sx == null) return; dx = ev.touches[0].clientX - sx; top.style.transform = `translateX(${dx}px) rotate(${dx / 30}deg)`; }, { passive: true });
-  top.addEventListener('touchend', () => { top.style.transition = ''; if (Math.abs(dx) > 90) next(dx > 0); else top.style.transform = ''; sx = null; setTimeout(() => dx = 0, 50); });
+  plan.dec = plan.dec || {};
+  const items = await Promise.all(plan.news.map(async it => { const e = await Dict.get(it.w); return { ...it, e, p: pronOf(it.w, e) }; }));
+  const left = items.filter(x => !plan.dec[x.w]).length;
+  box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:baseline;margin:30px 0 12px"><div class="micro">Three new words</div><div class="muted" style="font-size:12px">${left ? left + ' waiting · swipe' : 'all decided'}</div></div>
+    <div class="nrow">${items.map(x => { const d = plan.dec[x.w]; return `<article class="ncard${d ? ' dec' : ''}"><span class="why">${x.why}</span>
+      <button class="nw" data-w="${esc(x.w)}"><span class="nword">${esc(x.w)}</span>${x.p ? `<span class="muted" style="font-size:12.5px">${esc(x.p.r || '')}${x.p.est ? ' ≈' : ''}</span>` : ''}<span class="nmean">${esc(shortDef(x.w, x.e))}</span></button>
+      <div class="nact">${d === 'k' ? `<span class="nstate">${ICON.markOn} Kept</span>` : d === 'p' ? `<span class="nstate muted">Passed</span>` : `<button class="npass" data-p="${esc(x.w)}" aria-label="Pass">${ICON.close}</button><button class="pill nkeep" data-k="${esc(x.w)}">${ICON.mark} Keep</button>`}</div></article>`; }).join('')}<div style="flex:0 0 6px"></div></div>`;
+  $$('.nw', box).forEach(b => b.onclick = () => openWord(b.dataset.w));
+  $$('.nkeep', box).forEach(b => b.onclick = () => { keep(b.dataset.k); plan.dec[b.dataset.k] = 'k'; plan.i = Object.keys(plan.dec).length; store.set('daily', plan); renderDeck(plan); });
+  $$('.npass', box).forEach(b => b.onclick = () => { passed.push(b.dataset.p); save.passed(); plan.dec[b.dataset.p] = 'p'; plan.i = Object.keys(plan.dec).length; store.set('daily', plan); renderDeck(plan); });
 }
 function renderLore() {
   const L = LX.LORE, x = L[((dayIndex() % L.length) + L.length) % L.length];
   const [w, era, k, t, note] = x;
-  $('#lore').innerHTML = `<div class="micro" style="margin:28px 0 12px">Word Lore</div><article class="lorecv" style="${coverStyle('Whimsical')}"><span class="spine"></span>
-    <div class="row" style="justify-content:space-between;align-items:center"><span class="stag">${esc(era)}</span><span class="ltag">${k === 'fact' ? 'Recorded history' : 'A popular story'}</span></div>
-    <div class="sword" style="font-size:40px">${esc(w)}</div>
-    <div class="ltext">${esc(t)}</div>
-    <div class="row" style="justify-content:space-between;align-items:center;gap:10px;border-top:1px solid rgba(255,255,255,.12);padding-top:12px">${note ? `<span style="font-size:11px;opacity:.6;letter-spacing:.4px">${esc(note)}</span>` : '<span></span>'}
-    <button class="spbtn" id="lmark">${inT(w) ? ICON.markOn + ' Kept' : ICON.mark + ' Keep'}</button></div></article>`;
+  $('#lore').innerHTML = `<section class="lore2"><div class="row" style="justify-content:space-between;align-items:baseline;gap:10px"><div class="micro">Word Lore · ${esc(era)}</div><div class="ltag2">${k === 'fact' ? 'Recorded history' : 'A popular story'}</div></div>
+    <h2 class="lword">${esc(w)}</h2><p class="ltext2"><span class="dropcap">${esc(t.charAt(0))}</span>${esc(t.slice(1))}</p>
+    <div class="row" style="justify-content:space-between;align-items:center;gap:12px">${note ? `<span class="muted" style="font-size:11.5px;line-height:1.4">${esc(note)}</span>` : '<span></span>'}<button class="lkeep" id="lmark">${inT(w) ? ICON.markOn + ' Kept' : ICON.mark + ' Keep this word'}</button></div></section>`;
   $('#lmark').onclick = () => { if (!inT(w)) { keep(w); renderLore(); } else openWord(w); };
 }
 
@@ -852,19 +837,30 @@ const EX_LOOK = {
   sentence: ['Ornate', '<path d="M20 4C12 5 7 10 5 19c5-2 11-6 15-15z"/><path d="M5 19l5-5"/>'],
   synonym: ['Business', '<circle cx="12" cy="13.5" r="7"/><path d="M12 10v3.5l2.5 2"/><path d="M9.5 3h5"/>']
 };
+const EX_ICON = k => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${k === 'quill' ? EX_LOOK.sentence[1] : EX_LOOK[k][1]}</svg>`;
+function suggestedEx() {
+  const use = stats.exUse || {}; const list = EXERCISES.map(x => x.id).filter(id => id !== 'sentence' || Object.keys(treasury).length >= 3);
+  const d = dayIndex(); return list.slice().sort((a, b) => (use[a] || 0) - (use[b] || 0) || ((hash(a + d) % 7) - (hash(b + d) % 7)))[0];
+}
 function renderLexis() {
   const n = Object.keys(treasury).length, st = streak();
   const acc = stats.ok + stats.bad ? Math.round(stats.ok / (stats.ok + stats.bad) * 100) + '%' : '—';
-  view.innerHTML = `<div class="micro" style="color:var(--acc)">Lexis</div><h1 class="big" style="margin-top:6px">Sharpen your tongue.</h1>
+  const sg = EXERCISES.find(x => x.id === suggestedEx()), si = EXERCISES.indexOf(sg);
+  const romans = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+  view.innerHTML = `<div class="micro" style="color:var(--acc)">Lexis</div><h1 class="big" style="margin-top:6px">The practice room.</h1>
     <p class="serif it muted" style="font-size:17px;margin:6px 0 0">The best way to remember a word is to use it.</p>
-    <section class="stats" style="margin-top:18px"><div><b>${n}</b><span>in Treasury</span></div><div><b>${st}</b><span>day streak</span></div><div><b>${acc}</b><span>accuracy</span></div></section>
-    <div class="row" style="justify-content:space-between;align-items:baseline;margin:28px 0 12px"><div class="micro">The exercises</div><div class="muted" style="font-size:12px">tap to begin</div></div>
-    <div class="cats">${EXERCISES.map((x, i) => `<button class="cover ex6" data-x="${x.id}" style="${coverStyle(EX_LOOK[x.id][0])}"><span class="spine"></span>
-      <span class="ctop"><span class="ccount">${['I', 'II', 'III', 'IV', 'V', 'VI'][i]}${x.id === 'synonym' ? ' · timed' : ''}</span><span class="cicon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${EX_LOOK[x.id][1]}</svg></span></span>
-      <span class="cbot"><span class="cname" style="font-size:22px">${x.n}</span><span class="cex" style="font-size:14px">${x.short}</span></span></button>`).join('')}</div>
+    <section class="strip"><div><b>${n}</b><span>words</span></div><div><b>${st}</b><span>day streak</span></div><div><b>${acc}</b><span>accuracy</span></div></section>
+    <div class="micro" style="margin:28px 0 12px">Suggested for today</div>
+    <button class="feat ex7" data-x="${sg.id}" style="${coverStyle(EX_LOOK[sg.id][0])}"><span class="spine"></span>
+      <span class="row" style="justify-content:space-between;align-items:flex-start;width:100%"><span class="ccount">${romans[si]} · ${sg.id === 'synonym' ? 'timed · ' : ''}up to 10 questions</span><span class="cicon big">${EX_ICON(sg.id).replace('width="18" height="18"', 'width="24" height="24"')}</span></span>
+      <span class="stack" style="gap:6px;text-align:left"><span class="cname" style="font-size:34px">${sg.n}</span><span class="cex" style="font-size:16px">${sg.d}</span></span>
+      <span class="fbegin">Begin ${ICON.arrow}</span></button>
+    <div class="micro" style="margin:28px 0 12px">All exercises</div>
+    <div class="stack" style="gap:8px">${EXERCISES.map((x, i) => `<button class="spinebar ex7" data-x="${x.id}" style="${coverStyle(EX_LOOK[x.id][0])}"><span class="spine"></span><span class="snum">${romans[i]}</span>
+      <span class="stack" style="gap:2px;flex:1;min-width:0;text-align:left"><span class="sname">${x.n}</span><span class="sdesc">${x.short}</span></span>${x.id === 'synonym' ? '<span class="sbadge">Timed</span>' : ''}<span class="sicon">${EX_ICON(x.id)}</span></button>`).join('')}</div>
     ${n < 1 ? '<p class="muted" style="font-size:13px;margin-top:16px">Keep at least one word in your Treasury to begin.</p>' : ''}
-    <div class="note" style="margin-top:22px;box-shadow:none"><div class="micro" style="margin-bottom:6px">How cards level up</div><div style="font-size:13px;line-height:1.55;color:var(--ink2)">Every correct answer in I–IV and VI raises that word’s card: Acquaintance at 3, Familiar at 8, Fluent at 15, Silver-Tongued at 30.</div></div>`;
-  $$('.ex6').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } b.dataset.x === 'synonym' ? synonymSetup() : startEx(b.dataset.x); });
+    <p class="muted" style="font-size:12px;line-height:1.55;margin:20px 2px 0">Every correct answer in I–IV and VI raises that word’s card: Acquaintance at 3, Familiar at 8, Fluent at 15, Silver-Tongued at 30.</p>`;
+  $$('.ex7').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } stats.exUse = stats.exUse || {}; stats.exUse[b.dataset.x] = (stats.exUse[b.dataset.x] || 0) + 1; save.stats(); b.dataset.x === 'synonym' ? synonymSetup() : startEx(b.dataset.x); });
 }
 function pickForPractice(k, needEx) {
   const now = Date.now();
