@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.7.1';
+const VERSION = '1.7.2';
 const WHATS_NEW = [
+  { v: '1.7.2', title: 'The judge keeps your phone cool', notes: ['Cool mode: the Sentence Judge now thinks on a single processor core. It uses the same total effort, spread out so your phone stays cool, and less memory. Each check takes about 10 seconds.', 'Heat guard: if your phone gets warm and starts slowing itself down, the judge notices and rests for 3 minutes. A rest never counts as a mistake in a trial.'] },
   { v: '1.7.1', title: 'A gentler Sentence Judge', notes: ['The judge now uses at most two processor cores, so a check never works your whole phone at once.', 'Its helper threads go to sleep the moment a check is done instead of idling at full speed.', 'The judge unloads itself a minute after your last sentence, and whenever you leave Lucent, so nothing stays loaded in the background.', 'Setup is lighter: the AI is prepared once instead of two or three times.'] },
   { v: '1.7.0', title: 'The Sentence Judge', notes: ['Lucent can now read the sentences you write and judge whether each word is used with its true meaning. It is a small AI that lives on your phone: download it once (580 MB, Wi-Fi recommended) from Profile, and it works offline. Nothing you write leaves your phone.', 'Your own sentence in Lexis no longer shows the meaning. You get a random word from your Treasury and must show you know it. If you miss, Lucent reveals the meaning so you can try again.', 'The Ascension Trials to Fluent and Silver-Tongued now end with three sentences of your own, read by the judge. If one is rejected, you get one rewrite before it counts as a mistake.', 'The judge is accurate but not perfect, about 9 in 10 on our tests, so a clever misuse may occasionally slip past.'] },
   { v: '1.6.0', title: 'Collectible cards and the Ascension Trial', notes: ['Every Treasury card is now a glossy collectible. The higher its level, the grander it looks: plain folio, linen, tooled leather, a gold Greek key border, and finally engraved silver set with diamonds.', 'Each card carries an emblem that matches the word’s meaning (an owl for wisdom, scales for balance). Don’t like one? Flip the card and choose another.', 'Cards now rise only through their own Ascension Trial. Answer every question correctly to climb; one mistake and the card must wait before trying again. Each level also needs a few days of rest before the next trial.', 'Lexis exercises are now pure practice and no longer level up cards. Your cards keep the levels they already earned.'] },
@@ -1066,7 +1067,7 @@ async function startEx(id) {
             $('#noq', body).onclick = () => { recordAnswer(q.w, false); qi++; qi < qs.length ? ask() : finish(); };
             return;
           }
-          body.dataset.lock = 1; sb.disabled = true; sb.innerHTML = '<span class="spin"></span> Lucent is reading…';
+          body.dataset.lock = 1; sb.disabled = true; sb.innerHTML = '<span class="spin"></span> Lucent is reading… (about 10 seconds)';
           let r;
           try { r = await Judge.check(q.w, q.e, v, treasury[q.w].sent || []); }
           catch (err) { delete body.dataset.lock; sb.disabled = false; sb.textContent = 'Submit'; toast('The judge could not read that just now. Try again.'); return; }
@@ -1078,7 +1079,7 @@ async function startEx(id) {
           } else {
             if (r.why === 'meaning' && !counted.done) { recordAnswer(q.w, false); counted.done = true; }
             page(esc(r.note) + (r.why === 'meaning' ? ' Here is its meaning. Try again, or move on.' : ''), r.why === 'meaning' ? 'no' : 'rule');
-            if (r.why === 'meaning') $('#sent', body).value = v;
+            if (r.why === 'meaning' || r.why === 'cool') $('#sent', body).value = v;
           }
         };
       };
@@ -1138,6 +1139,17 @@ const Judge = {
     try { await caches.delete('transformers-cache'); await caches.delete('lucent-ai'); } catch { }
     delete settings.judge; delete settings.judgeDev; save.settings();
   },
+  /* a phone that gets hot slows itself down; a check that takes far longer than this phone's usual time is the sign */
+  heat(r) {
+    if (!r || r.first || r.device === 'webgpu') return;           // the first check after loading is always slower
+    const past = settings.judgeMs || [], med = past.length ? [...past].sort((x, y) => x - y)[Math.floor(past.length / 2)] : 0;
+    if (past.length >= 3 && r.ms > Math.max(med * 2, med + 8000)) {
+      this.coolUntil = Date.now() + 3 * 60000; this.restart();
+      setTimeout(() => toast('Your phone is warm. The judge will rest for 3 minutes to let it cool.'), 400);
+      return;
+    }
+    settings.judgeMs = past.concat(r.ms).slice(-7); save.settings();
+  },
   /* the full check: plain rules first, then the AI's verdict */
   async check(word, e, sentence, others = []) {
     const s = sentence.trim().replace(/\s+/g, ' ');
@@ -1151,9 +1163,12 @@ const Judge = {
     const sim = (a, b) => { const A = bag(a), B = bag(b); let k = 0; A.forEach(x => B.has(x) && k++); return k / Math.max(1, Math.min(A.size, B.size)); };
     if (others.some(o => sim(o, s) > 0.75)) return { ok: false, why: 'same', note: 'Too close to a sentence you already wrote. Try a fresh situation.' };
     const meaning = (pl ? pl[0] : shortDef(word, e)).replace(/\.$/, '');
+    // heat guard: while the phone is resting, the judge waits (never counted as a mistake)
+    if (Date.now() < (this.coolUntil || 0)) return { ok: false, why: 'cool', note: `Your phone is warm, so the judge is resting to let it cool. Ready ${waitText(this.coolUntil)}. Nothing is lost.` };
     if (!this.w) await this.load();
     clearTimeout(this.idle);
     let r; try { r = await this.call({ type: 'score', word, meaning, sentence: s }); } finally { this.rest(); }
+    this.heat(r);
     return r.score >= JUDGE_T ? { ok: true, score: r.score, ms: r.ms } : { ok: false, why: 'meaning', score: r.score, ms: r.ms, note: `This doesn’t seem to use “${word}” with its true meaning.` };
   }
 };
@@ -1167,6 +1182,7 @@ function judgeSetup(onDone) {
       <h1 class="big" style="font-size:34px;margin:0">The Sentence Judge</h1>
       <p class="muted" style="font-size:15px;line-height:1.55;margin:0">A small AI that lives on your phone and reads the sentences you write. It checks that each word is used with its true meaning. It works offline, and nothing you write leaves your phone.</p>
       <div class="jfacts"><div><b>${JUDGE_SIZE}</b><span>one-time download</span></div><div><b>Offline</b><span>after download</span></div><div><b>Private</b><span>stays on your phone</span></div></div>
+      <p class="muted" style="font-size:13px;line-height:1.5;margin:0">It thinks on a single processor core, so your phone stays cool, and it unloads itself when you stop writing. If your phone ever gets warm, the judge pauses for a few minutes on its own.</p>
       <p class="muted" style="font-size:13px;line-height:1.5;margin:0">Needed for <b style="color:var(--ink)">Your own sentence</b> in Lexis and for the Ascension Trials to Fluent and Silver-Tongued. Wi-Fi recommended.</p>
       <div id="jst">${on ? '<div class="jready">Ready on this phone</div>' : ''}</div>
       ${on ? '<button class="btn ghost" id="jrm">Remove the judge (frees space)</button>' : '<button class="btn" id="jin">Download the Sentence Judge</button>'}
@@ -1204,6 +1220,7 @@ function ascState(rec) {
 }
 function waitText(at) {
   const ms = at - Date.now(); if (ms <= 0) return 'now';
+  if (ms < 36e5) { const mi = Math.max(1, Math.ceil(ms / 6e4)); return 'in ' + mi + ' minute' + (mi > 1 ? 's' : ''); }
   const h = Math.ceil(ms / 36e5); if (h < 24) return 'in ' + h + ' hour' + (h > 1 ? 's' : '');
   const d = Math.ceil(ms / 864e5); return d === 1 ? 'tomorrow' : d < 7 ? 'in ' + d + ' days' : 'on ' + new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 }
@@ -1322,7 +1339,7 @@ async function ascendTrial(w, onDone) {
         const ta = $('#sent', body), sb = $('#sub', body);
         sb.onclick = async () => {
           const v = ta.value.trim(); if (!v || body.dataset.lock) return; body.dataset.lock = 1;
-          sb.disabled = true; sb.innerHTML = '<span class="spin"></span> Lucent is reading…';
+          sb.disabled = true; sb.innerHTML = '<span class="spin"></span> Lucent is reading… (about 10 seconds)';
           let r;
           try { r = await Judge.check(w, e, v, written); }
           catch (err) { delete body.dataset.lock; sb.disabled = false; sb.textContent = 'Submit'; toast('The judge could not read that just now. Try again.'); return; }
@@ -1332,10 +1349,11 @@ async function ascendTrial(w, onDone) {
             k++; retried = false;
             if (k >= WRITE_N) { next(); return; }
             page(''); toast('Well used.');
-          } else if (!retried && r.why !== 'missing' && r.why !== 'short' && r.why !== 'copy' && r.why !== 'same') {
+          } else if (!retried && !['missing', 'short', 'copy', 'same', 'cool'].includes(r.why)) {
             retried = true; page(esc(r.note) + ' <b>One rewrite left.</b>');
-          } else if (r.why === 'missing' || r.why === 'short' || r.why === 'copy' || r.why === 'same') {
-            page(esc(r.note));   // rule slips are pointed out, never counted as a mistake
+          } else if (['missing', 'short', 'copy', 'same', 'cool'].includes(r.why)) {
+            page(esc(r.note));   // rule slips and heat pauses are pointed out, never counted as a mistake
+            if (r.why === 'cool') $('#sent', body).value = v;
           } else lose();
         };
         setTimeout(() => ta.focus(), 300);

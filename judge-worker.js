@@ -8,8 +8,8 @@ env.allowLocalModels = false;
 env.useBrowserCache = true;
 const LIB = new URL('./lib/', self.location).href;
 env.backends.onnx.wasm.wasmPaths = { mjs: LIB + 'ort-wasm-simd-threaded.asyncify.mjs', wasm: LIB + 'ort-wasm-simd-threaded.asyncify.wasm' };
-// gentle on the phone: at most 2 cores, so a check never pins the whole processor
-env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? Math.min(2, self.navigator.hardwareConcurrency || 1) : 1;
+// cool mode: a single processor core. Same total work as several cores, but spread out, so the phone stays cool
+env.backends.onnx.wasm.numThreads = 1;
 
 /* Chrome's processor engine lacks one compressed-lookup block this model uses; Lucent ships the same model
    graph with that block rebuilt from basic math (identical results), and swaps it in here. */
@@ -21,6 +21,7 @@ const patched = (input, init) => {
   return _fetch(input, init);
 };
 env.fetch = patched; self.fetch = patched;
+let runs = 0;
 let tok = null, model = null, device = null, YES = [], NO = [], loading = null;
 const SYS = 'You are a strict English teacher checking how a student used a vocabulary word. Answer only Yes or No.';
 const ask = (w, m, s) => `Word: "${w}"\nMeaning: ${m}\nStudent's sentence: "${s}"\n\nIs the word used correctly, with this meaning, and does the whole sentence make logical sense with that meaning? Answer Yes or No.`;
@@ -52,7 +53,7 @@ async function load(pref) {
     YES = [...new Set(['Yes', ' Yes', 'YES', 'yes'].map(first))];
     NO = [...new Set(['No', ' No', 'NO', 'no'].map(first))];
   })();
-  try { await loading; } finally { loading = null; }
+  try { await loading; runs = 0; } finally { loading = null; }
 }
 const lse = a => { const m = Math.max(...a); return m + Math.log(a.reduce((s, x) => s + Math.exp(x - m), 0)); };
 async function score(word, meaning, sentence) {
@@ -69,7 +70,7 @@ async function score(word, meaning, sentence) {
 self.onmessage = async e => {
   const m = e.data || {};
   try {
-    if (m.type === 'load') { if (m.model) { MODEL = m.model; EXT = !!m.ext; } await load(m.device); postMessage({ type: 'ready', id: m.id, device, threads: self.crossOriginIsolated }); }
-    else if (m.type === 'score') { const t0 = performance.now(); const s = await score(m.word, m.meaning, m.sentence); postMessage({ type: 'score', id: m.id, score: s, ms: Math.round(performance.now() - t0), device }); }
+    if (m.type === 'load') { if (m.model) { MODEL = m.model; EXT = !!m.ext; } await load(m.device); postMessage({ type: 'ready', id: m.id, device, threads: self.crossOriginIsolated}); }
+    else if (m.type === 'score') { const t0 = performance.now(); const s = await score(m.word, m.meaning, m.sentence); postMessage({ type: 'score', id: m.id, score: s, ms: Math.round(performance.now() - t0), device, first: runs++ === 0 }); }
   } catch (err) { postMessage({ type: 'error', id: m.id, message: String(err && err.message || err) }); }
 };

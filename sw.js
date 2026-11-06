@@ -1,5 +1,5 @@
 /* Lucent service worker: the app and the whole dictionary work offline. */
-const VERSION = 'lucent-v1.7.1';
+const VERSION = 'lucent-v1.7.2';
 const SHELL = ['./', 'index.html', 'app.js', 'content.js', 'plain.js', 'cats.js', 'seals.js', 'frames.js', 'emblems.js', 'judge-worker.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
   'fonts/cormorant-garamond-latin-400-normal.woff2', 'fonts/cormorant-garamond-latin-400-italic.woff2', 'fonts/cormorant-garamond-latin-500-normal.woff2',
@@ -29,16 +29,9 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (/\/data\//.test(url.pathname)) { e.respondWith(cacheFirst(e.request, DICT)); return; }
-  if (/\/lib\//.test(url.pathname)) { e.respondWith(cacheFirst(e.request, AI).then(isolate)); return; }
-  e.respondWith(staleWhileRevalidate(e.request, VERSION).then(isolate));
+  if (/\/lib\//.test(url.pathname)) { e.respondWith(cacheFirst(e.request, AI)); return; }
+  e.respondWith(staleWhileRevalidate(e.request, VERSION));
 });
-/* once the Sentence Judge is set up, isolate the app so the AI can use several processor cores */
-async function isolate(res) {
-  if (!res || res.type === 'opaque' || !(await caches.has(AI))) return res;
-  const h = new Headers(res.headers);
-  h.set('Cross-Origin-Opener-Policy', 'same-origin'); h.set('Cross-Origin-Embedder-Policy', 'credentialless');
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
-}
 async function cacheFirst(req, name, opaque) {
   const c = await caches.open(name);
   const hit = await c.match(req, { ignoreSearch: true });
