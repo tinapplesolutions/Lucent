@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const WHATS_NEW = [
+  { v: '1.3.0', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
   { v: '1.2.0', title: 'Clearer meanings', notes: ['A bigger dictionary: Wiktionary’s clearer meanings now sit alongside the old ones, which you can still open under “More meanings.”', 'Plain meanings: the first 400 words now have a simple-English meaning and example, written for Lucent. More arrive in future updates.', 'Many more words now have a confirmed pronunciation instead of an estimate (≈), and richer word origins.', 'New in Lexis: Synonym match — find the word that means the same, against a 10- or 5-second clock.', 'The dictionary refreshes once in the background (about 13 MB).'] },
   { v: '1.1.0', title: 'Cards you can hold', notes: ['Treasury cards now move like real cards: each one follows your finger, tilts, and settles into place.', 'Every word now shows its synonyms and its opposites (antonyms), below “Close in meaning.”', 'Meanings are now ordered by how commonly each is used.', 'The dictionary refreshes once in the background (about 9 MB) to add the new opposites.'] },
   { v: '1.0.1', title: 'Installing fixed', notes: ['Lucent now installs as its own app on your phone, separate from Manna.'] },
@@ -38,6 +39,7 @@ const ICON = {
   flip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15"/><path d="M4 20v-5h5"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>'
 };
 
@@ -197,8 +199,8 @@ function pronOf(w, e) {
   const k = (w || '').toLowerCase();
   if (LX.PRON[k]) return { r: LX.PRON[k][0], i: LX.PRON[k][1], est: false };
   const x = enr[k];
-  if (x && x.ipa) return { r: x.resp || (e && e.p && !e.e ? e.p : null), i: x.ipa, est: false, audio: x.audio };
-  if (e && e.p) return { r: e.p, i: e.i, est: !!e.e };
+  if (x && x.ipa) return { r: (x.resp || (e && e.p && !e.e ? e.p : '')).replace(/uu/g, 'oo').replace(/UU/g, 'OO') || null, i: x.ipa, est: false, audio: x.audio };
+  if (e && e.p) return { r: e.p.replace(/uu/g, 'oo').replace(/UU/g, 'OO'), i: e.i, est: !!e.e };
   return null;
 }
 
@@ -282,10 +284,26 @@ function streak() {
   while (days.has(ymd(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
+const RARITY = { first: 'Common', ten: 'Common', streak7: 'Common', hundred: 'Rare', fluent: 'Rare', scribe: 'Rare', streak30: 'Epic', perfect: 'Epic', silver: 'Legendary' };
+function sealSVG(id, size) { return `<svg width="${size}" height="${size}" viewBox="0 0 200 200" aria-hidden="true">${(LX.SEAL_ART || {})[id] || ''}</svg>`; }
+const sealQ = [];
 function award(id) {
   if (seals[id]) return;
   seals[id] = Date.now(); save.seals();
-  const s = LX.SEALS.find(x => x.id === id); if (s) setTimeout(() => toast('Seal earned · ' + s.n), 300);
+  sealQ.push(id); if (sealQ.length === 1) setTimeout(() => showSeal(sealQ[0], true), 500);
+}
+function showSeal(id, fresh) {
+  const s = LX.SEALS.find(x => x.id === id); if (!s) return;
+  const on = !!seals[id];
+  const el = document.createElement('div'); el.className = 'sealpop';
+  el.innerHTML = `<div class="sp-card${fresh ? ' fresh' : ''}${on ? '' : ' locked'}"><div class="micro" style="color:${on ? 'var(--acc)' : 'var(--muted)'}">${fresh ? 'Seal earned' : on ? 'Seal' : 'Not yet earned'} · ${RARITY[id]}</div>
+    <div class="sp-art">${sealSVG(id, 200)}</div><div class="serif" style="font-size:32px;font-weight:500;line-height:1.1">${esc(s.n)}</div>
+    <div class="muted" style="font-size:14px">${esc(s.d)}</div>${on ? `<div class="muted" style="font-size:12px">Earned ${new Date(seals[id]).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</div>` : ''}
+    <button class="btn" id="spok" style="margin-top:8px">${fresh ? 'Splendid' : 'Close'}</button></div>`;
+  const close = () => { closeTop(); };
+  el.addEventListener('click', ev => { if (ev.target === el || ev.target.id === 'spok') close(); });
+  pushOverlay(el, () => { if (fresh) { sealQ.shift(); if (sealQ.length) setTimeout(() => showSeal(sealQ[0], true), 300); } });
+  if (fresh && navigator.vibrate) { try { navigator.vibrate([20, 40, 30]); } catch { } }
 }
 function checkSeals() {
   const n = Object.keys(treasury).length;
@@ -311,12 +329,13 @@ function pushOverlay(el, onClose) {
   document.body.appendChild(el); stack.push({ el, onClose });
   history.pushState({ ov: stack.length }, '');
 }
+let skipPop = 0;
 function closeTop(fromPop) {
   const top = stack.pop(); if (!top) return;
   top.el.remove(); top.onClose && top.onClose();
-  if (!fromPop) history.back();
+  if (!fromPop) { skipPop++; history.back(); }
 }
-window.addEventListener('popstate', () => { if (stack.length) closeTop(true); });
+window.addEventListener('popstate', () => { if (skipPop) { skipPop--; return; } if (stack.length) closeTop(true); });
 function overlay(title, bodyHTML, opts = {}) {
   const el = document.createElement('div'); el.className = 'overlay';
   el.innerHTML = `<div class="ov-head"><button class="iconbtn" data-close aria-label="Back">${ICON.back}</button><div class="micro">${esc(title || '')}</div><div style="width:44px">${opts.right || ''}</div></div><div class="ov-body">${bodyHTML}</div>`;
@@ -332,10 +351,10 @@ function go(t) {
   tab = t; $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   view.classList.toggle('flush', t === 'treasury');
   view.scrollTop = 0;
-  ({ today: renderToday, search: renderSearch, treasury: renderTreasury, lexis: renderLexis, profile: renderProfile })[t]();
+  ({ today: renderToday, search: renderSearch, discover: renderSearch, treasury: renderTreasury, lexis: renderLexis, profile: renderProfile })[t]();
 }
 $$('#tabs button').forEach(b => b.onclick = () => go(b.dataset.tab));
-$('#searchBtn').onclick = () => go('search');
+$('#searchBtn').onclick = () => go('discover');
 
 /* ---------- word page ---------- */
 function sensesHTML(e) {
@@ -401,12 +420,12 @@ async function openWord(q) {
 /* ---------- search ---------- */
 let lastQuery = '';
 function renderSearch() {
-  view.innerHTML = `<div class="search"><input id="q" type="search" placeholder="Look up a word" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Look up a word" value="${esc(lastQuery)}"></div><div class="results" id="res"></div>`;
+  view.innerHTML = `<h1 class="big">Discover</h1><div class="search" style="margin-top:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="q" type="search" placeholder="Look up a word" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Look up a word" value="${esc(lastQuery)}"></div><div class="results" id="res"></div>`;
   const q = $('#q'), res = $('#res');
   let tm;
   const run = async () => {
     const v = q.value.trim(); lastQuery = v;
-    if (!v) { res.innerHTML = recentHTML(); bindRes(); return; }
+    if (!v) { res.innerHTML = catsHTML() + recentHTML(); bindRes(); bindCats(); return; }
     let list;
     try { list = await Dict.prefix(v, 30); } catch { res.innerHTML = '<p class="muted" style="margin-top:20px">The word list hasn’t downloaded yet. Connect once to finish setting up.</p>'; return; }
     if (!list.length) { res.innerHTML = `<button data-w="${esc(v)}"><span class="w">${esc(v)}</span><span class="m">look up</span></button>`; bindRes(); return; }
@@ -418,6 +437,32 @@ function renderSearch() {
   q.onkeydown = e => { if (e.key === 'Enter' && q.value.trim()) { remember(q.value.trim()); openWord(q.value.trim()); } };
   run();
   setTimeout(() => q.focus(), 50);
+}
+function catsHTML() {
+  return `<div class="micro" style="margin:24px 0 12px">Explore by category</div><div class="cats">${LX.CATS.map((c, i) => `<button class="cat" data-c="${i}"><span class="row" style="justify-content:space-between;align-items:flex-start;width:100%"><span class="cn">${esc(c.n)}</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.i}</svg></span><span class="ce">${esc(c.w.split(' ').slice(0, 2).join(' · '))}</span></button>`).join('')}</div>`;
+}
+function bindCats() { $$('#res .cat').forEach(b => b.onclick = () => openCategory(+b.dataset.c)); }
+const catDecks = {};
+async function openCategory(ci) {
+  const c = LX.CATS[ci];
+  const deckFor = () => { const all = c.w.split(' '); const fresh = all.filter(w => !inT(w)); return shuffle(fresh.length >= 5 ? fresh : all); };
+  if (!catDecks[ci] || catDecks[ci].length < 5) catDecks[ci] = (catDecks[ci] || []).concat(deckFor());
+  const el = overlay('Discover', '');
+  const body = $('.ov-body', el);
+  const draw = async () => {
+    const five = catDecks[ci].splice(0, 5);
+    if (catDecks[ci].length < 5) catDecks[ci] = catDecks[ci].concat(deckFor().filter(w => !five.includes(w)));
+    const rows = await Promise.all(five.map(async w => { const e = await Dict.get(w); return { w, e, p: pronOf(w, e) }; }));
+    body.innerHTML = `<div class="row" style="gap:10px;margin-top:4px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.i}</svg><h1 class="big">${esc(c.n)}</h1></div>
+      <p class="serif it muted" style="font-size:17px;margin:6px 0 10px">${esc(c.d)}</p>
+      <div>${rows.map(r => `<div class="crow"><button class="cw" data-w="${esc(r.w)}"><span class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:25px;font-weight:500;line-height:1">${esc(r.w)}</span>${r.p ? `<span class="muted" style="font-size:12px">${esc(r.p.r || '')}${r.p.est ? ' ≈' : ''}</span>` : ''}</span><span style="font-size:13.5px;line-height:1.4;color:var(--ink2)">${esc(shortDef(r.w, r.e))}</span></button>
+        <button class="keepc${inT(r.w) ? ' on' : ''}" data-k="${esc(r.w)}" aria-label="${inT(r.w) ? 'In your Treasury' : 'Keep ' + esc(r.w)}">${inT(r.w) ? ICON.markOn : ICON.mark}</button></div>`).join('')}</div>
+      <button class="btn" id="shuf" style="margin-top:18px">${ICON.shuffle} Shuffle five more</button>`;
+    $$('.cw', body).forEach(b => b.onclick = () => openWord(b.dataset.w));
+    $$('.keepc', body).forEach(b => b.onclick = () => { const w = b.dataset.k; if (!inT(w)) { keep(w); b.classList.add('on'); b.innerHTML = ICON.markOn; } else openWord(w); });
+    $('#shuf', body).onclick = () => { body.scrollTop = 0; draw(); };
+  };
+  draw();
 }
 function remember(w) { const r = store.get('recent', []).filter(x => x !== w); r.unshift(w); store.set('recent', r.slice(0, 12)); }
 function recentHTML() {
@@ -463,7 +508,7 @@ async function renderTreasury() {
   if (!words.length) {
     view.innerHTML = `<div style="padding:0 22px"><h1 class="big">Treasury</h1><p class="serif it muted" style="font-size:17px;margin:6px 0 0">Words you have chosen to keep.</p>
       <div style="margin-top:40px;border:1px dashed var(--line2);border-radius:14px;padding:28px 22px;text-align:center"><p class="serif" style="font-size:20px;margin:0 0 6px">Your Treasury is empty.</p><p class="muted" style="font-size:13px;margin:0 0 18px">Look up a word and tap “Add to Treasury,” or keep one of today’s new words.</p><button class="btn" id="goS">Look up a word</button></div></div>`;
-    $('#goS').onclick = () => go('search'); return;
+    $('#goS').onclick = () => go('discover'); return;
   }
   view.innerHTML = `<div style="padding:0 22px"><h1 class="big">Treasury</h1><p class="serif it muted" style="font-size:17px;margin:6px 0 0">${words.length} word${words.length > 1 ? 's' : ''} you have chosen to keep.</p></div>
     <div class="deck3d" id="deck">${words.map((w, i) => `<div class="c3" data-i="${i}" role="button" tabindex="0" aria-label="${esc(w)}"><div class="card f0" style="height:450px"></div></div>`).join('')}</div>
@@ -989,7 +1034,7 @@ function renderProfile() {
       <div class="collbar">${tw.length ? counts.map((n, i) => n ? `<span style="flex-grow:${n};background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></span>` : '').join('') : ''}</div>
       <div class="legend">${LX.CARD_LEVELS.map((l, i) => `<div><i style="background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></i><span>${l.n}</span><b>${counts[i]}</b></div>`).join('')}</div></section>
     ${profile.palate ? `<section class="sec"><div class="micro">Your palate</div><button class="setrow" id="pal" style="border-top:1px solid var(--line)"><span class="serif" style="font-size:18px">${profile.palate.title}</span><span>${ICON.next.replace('<svg', '<svg width="16" height="16"')}</span></button></section>` : ''}
-    <section class="sec"><div class="micro">Seals</div><div class="seals">${LX.SEALS.map(s => `<div class="seal ${seals[s.id] ? 'on' : 'off'}" title="${esc(s.d)}"><i>L</i><span>${esc(s.n)}</span></div>`).join('')}</div></section>
+    <section class="sec"><div class="micro">Seals · ${Object.keys(seals).length} of ${LX.SEALS.length}</div><div class="seals">${LX.SEALS.map(s => `<button class="seal ${seals[s.id] ? 'on' : 'off'}" data-s="${s.id}" aria-label="${esc(s.n)}${seals[s.id] ? '' : ', not yet earned'}">${sealSVG(s.id, 78)}<span>${esc(s.n)}</span></button>`).join('')}</div></section>
     <section class="sec"><div class="micro">Settings</div>
       <div class="setrow"><span>Theme</span><div class="seg" id="theme">${['day', 'night', 'auto'].map(t => `<button data-t="${t}" class="${settings.theme === t ? 'on' : ''}">${t === 'day' ? 'Day' : t === 'night' ? 'Night' : 'Auto'}</button>`).join('')}</div></div>
       <button class="setrow" id="offl"><span>Offline library</span><span id="offst">${offlineLabel(off)}</span></button>
@@ -1000,6 +1045,7 @@ function renderProfile() {
       <button class="setrow" id="ab"><span>About Lucent</span><span>v${VERSION}</span></button>
       <input type="file" id="rsf" accept="application/json,.json" class="hidden"></section>`;
   $('#edit').onclick = editProfile;
+  $$('.seal').forEach(b => b.onclick = () => showSeal(b.dataset.s, false));
   const pal = $('#pal'); if (pal) pal.onclick = () => showPalate(profile.palate, false);
   $$('#theme button').forEach(b => b.onclick = () => { settings.theme = b.dataset.t; save.settings(); applyTheme(); renderProfile(); });
   $('#offl').onclick = () => { const o = store.get('offline3', {}); if (o.total && o.done >= o.total) toast('The whole dictionary is saved on this phone.'); else { startOfflineDownload(true); toast('Saving the dictionary for offline use…'); } };
