@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.7.2';
+const VERSION = '1.7.3';
 const WHATS_NEW = [
+  { v: '1.7.3', title: 'Card backs, reborn', notes: ['The back of every card now matches its front: the same material and engraved border, laid out like the bookplate in an old library book.', 'Meanings, origin, synonyms and your own sentences sit between ornaments, with your notes on lined paper.', 'To release a word from your Treasury, tap the small round bin at the bottom of its back.'] },
   { v: '1.7.2', title: 'The judge keeps your phone cool', notes: ['Cool mode: the Sentence Judge now thinks on a single processor core. It uses the same total effort, spread out so your phone stays cool, and less memory. Each check takes about 10 seconds.', 'Heat guard: if your phone gets warm and starts slowing itself down, the judge notices and rests for 3 minutes. A rest never counts as a mistake in a trial.'] },
   { v: '1.7.1', title: 'A gentler Sentence Judge', notes: ['The judge now uses at most two processor cores, so a check never works your whole phone at once.', 'Its helper threads go to sleep the moment a check is done instead of idling at full speed.', 'The judge unloads itself a minute after your last sentence, and whenever you leave Lucent, so nothing stays loaded in the background.', 'Setup is lighter: the AI is prepared once instead of two or three times.'] },
   { v: '1.7.0', title: 'The Sentence Judge', notes: ['Lucent can now read the sentences you write and judge whether each word is used with its true meaning. It is a small AI that lives on your phone: download it once (580 MB, Wi-Fi recommended) from Profile, and it works offline. Nothing you write leaves your phone.', 'Your own sentence in Lexis no longer shows the meaning. You get a random word from your Treasury and must show you know it. If you miss, Lucent reveals the meaning so you can try again.', 'The Ascension Trials to Fluent and Silver-Tongued now end with three sentences of your own, read by the judge. If one is rejected, you get one rewrite before it counts as a mistake.', 'The judge is accurate but not perfect, about 9 in 10 on our tests, so a clever misuse may occasionally slip past.'] },
@@ -576,6 +577,38 @@ function lcWordSize(w, li) {
   return n <= 8 ? b : n <= 11 ? b - 6 : n <= 14 ? Math.round(b * .7) : n <= 17 ? Math.round(b * .6) : Math.round(b * .5);
 }
 const pipsHTML = (n, c) => Array.from({ length: 5 }, (_, i) => `<i style="border-color:${c};background:${i < n ? c : 'transparent'}"></i>`).join('');
+/* the reverse of a collectible card: same material and engraved frame, laid out like a library bookplate */
+const fleuronSVG = c => `<svg class="bfl" width="70" height="10" viewBox="0 0 70 10" aria-hidden="true"><path d="M2 5h24M44 5h24" stroke="${c}" stroke-width=".8"/><path d="M35 1 L39 5 L35 9 L31 5 Z" fill="none" stroke="${c}" stroke-width=".9"/><circle cx="35" cy="5" r="1.1" fill="${c}"/></svg>`;
+function backHTML(w, e, rec, h, d) {
+  const { li, as, em, o, syn, ant, fam, acc } = d, K = CARD_LOOK[li], A = K.acc, sc = h / 390, wd = Math.round(250 * sc);
+  const p = pronOf(w, e), pl = plainOf(w), kept = !!treasury[w], dark = li >= 2;
+  const sec = (label, body) => `<div class="bsec"><div class="bk" style="color:${A}">${label}</div>${body}</div>`;
+  const words = list => `<div class="bwords">${list.map(esc).join('<i style="color:${A}"> · </i>')}</div>`.replace(/\$\{A\}/g, A);
+  return `<div class="lcard lc${li} lback" style="width:${wd}px;height:${h}px;border-radius:${Math.round(14 * sc)}px;--a:${A};--ink:${K.ink}"><div class="lin" style="transform:scale(${sc.toFixed(4)})">
+    <div class="lsurf"><div class="lbg"><svg class="lframe" viewBox="0 0 250 390" preserveAspectRatio="none" aria-hidden="true">${(LX.FRAMES || [])[li] || ''}</svg></div></div>
+    <div class="bscroll${dark ? ' dk' : ''}" style="inset:${[15, 21, 30, 37, 38][li]}px ${[15, 19, 27, 28, 30][li]}px;padding:10px ${[9, 8, 5, 6, 6][li]}px 12px;color:${K.ink}">
+      <div class="bhead">${emSVG(em, 26, K.ic)}<div class="bhw"><div class="bword">${esc(w)}</div>${p ? `<div class="bpr" style="color:${A}">${esc(p.r || '')}${p.est ? ' ≈' : ''}</div>` : ''}</div>
+        <button class="bspk" id="fsp" aria-label="Hear it" style="border-color:${A};color:${A}">${ICON.speak}</button></div>
+      <div class="blv" style="color:${A}"><span>${esc(LX.CARD_LEVELS[li].n)}</span><span class="lpips">${pipsHTML(li + 1, A)}</span></div>
+      ${kept ? `<div class="bplaque" style="border-color:${A}88"><div class="bk" style="color:${A}">Ascension</div><div class="bpt">${ascLine(as)}</div>
+        ${!as.max ? `<button class="bbtn${as.ready ? ' on' : ''}" id="ascB">${as.ready ? 'Begin the trial' : 'Resting · ready ' + waitText(as.at)}</button>` : ''}</div>` : ''}
+      ${fleuronSVG(A)}
+      ${pl ? sec('Meaning', `<div class="bmean">${esc(pl[0])}</div><div class="bex">“${esc(pl[1])}”</div>`) : ''}
+      ${e && e.s.length ? sec(pl ? 'In the dictionary' : 'Meanings', `<ol class="bdefs">${e.s.slice(0, 4).map(s => `<li><i style="color:${A}">${esc(s[0])}</i> ${esc(endDot(s[1]))}</li>`).join('')}</ol>`) : ''}
+      ${o ? sec('Origin', `<div class="borig">${o.html}</div>`) : ''}
+      ${syn.length ? sec('Synonyms', words(syn)) : ''}
+      ${ant.length ? sec('Opposites', words(ant)) : ''}
+      ${fam.length ? sec('Same root', words(fam)) : ''}
+      ${kept ? fleuronSVG(A) : ''}
+      ${rec.sent && rec.sent.length ? sec('In your own words', rec.sent.map(x => `<div class="bsent">“${esc(x)}”</div>`).join('')) : ''}
+      ${kept ? sec('Your notes', `<textarea id="note" class="bnote" placeholder="Where you met it, how to remember it…">${esc(rec.note || '')}</textarea>`) : ''}
+      ${kept ? `<div class="bledger" style="border-color:${A}55"><span><b>${rec.c}</b> correct</span><span><b>${rec.m}</b> missed</span><span><b>${acc}</b> accuracy</span></div>
+        <div class="bstamp" style="color:${A}"><span>Collected ${new Date(rec.a).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span><span>${collectorNo(w)}</span></div>
+        <div class="blinks"><button class="blink" id="emB" style="color:${A}">${emSVG(em, 14, A)} ${esc(em.n)} · change emblem</button><button class="btrash" id="rm" aria-label="Release from Treasury" title="Release from Treasury" style="border-color:${A}66;color:${A}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/></svg></button></div>` : ''}
+    </div>
+    <div class="lgloss" style="--g:${K.gloss * .6}"></div>
+  </div></div>`;
+}
 function cardHTML(w, e, rec, h = 450) {
   const li = lvOf(rec), L = LX.CARD_LEVELS[li].n, K = CARD_LOOK[li];
   const s = e && e.s ? e.s[0] : null, p = pronOf(w, e), def = shortDef(w, e), os = originShort(e, w);
@@ -705,24 +738,7 @@ async function openFull(words, i) {
     const acc = rec.c + rec.m ? Math.round(rec.c / (rec.c + rec.m) * 100) + '%' : '—';
     el.innerHTML = `<div class="stage"><div class="flip${flipped ? ' back' : ''}" id="flip">
         <div class="face f">${cardHTML(w, e, rec, fh)}</div>
-        <div class="face b"><div class="card backface" style="height:100%">
-          <div class="row" style="justify-content:space-between"><h3>${esc(w)}</h3><button class="speak" style="border-color:#1C1A17;color:#1C1A17" id="fsp" aria-label="Hear it">${ICON.speak}</button></div>
-          ${treasury[w] ? `<div class="ascbox"><div class="k">Ascension · ${esc(LX.CARD_LEVELS[li].n)}</div><div class="apips">${pipsHTML(li + 1, '#8C2A37')}</div>
-            <div class="v serif" style="font-size:17px;line-height:1.35">${ascLine(as)}</div>
-            ${!as.max ? `<button class="btn${as.ready ? '' : ' ghost'}" id="ascB" style="height:44px;margin-top:10px${as.ready ? '' : ';color:#6B6358;border-color:#CFC5B2'}">${as.ready ? 'Begin the Ascension Trial' : 'Resting · ' + waitText(as.at)}</button>` : ''}</div>` : ''}
-          <div class="grid3"><div class="stat"><b>${rec.c}</b><span>correct in practice</span></div><div class="stat"><b>${rec.m}</b><span>missed</span></div><div class="stat"><b>${acc}</b><span>accuracy</span></div></div>
-          ${treasury[w] ? `<div class="row emrow" style="gap:12px;align-items:center"><span class="emchip">${emSVG(em, 30, '#1C1A17')}</span><div style="flex:1;min-width:0"><div class="k">Emblem${rec.em ? ' · your choice' : ''}</div><div class="v">${esc(em.n)} — ${esc(em.t)}</div></div><button class="chipbtn" id="emB">Change</button></div>` : ''}
-          ${plainOf(w) ? `<div><div class="k">Plain meaning</div><div class="v serif" style="font-size:18px;line-height:1.35">${esc(plainOf(w)[0])}</div><div class="v serif it" style="font-size:16px;color:#4A443C;margin-top:4px">“${esc(plainOf(w)[1])}”</div></div>` : ''}
-          ${e && e.s.length ? `<div><div class="k">${plainOf(w) ? 'Dictionary meanings' : 'All meanings'}</div><div class="v">${e.s.slice(0, 4).map((s, k) => `${k + 1}. <i>${esc(s[0])}</i> — ${esc(endDot(s[1]))}`).join('<br>')}</div></div>` : ''}
-          ${o ? `<div><div class="k">Origin</div><div class="v serif" style="font-size:16px">${o.html}</div></div>` : ''}
-          ${fam.length ? `<div><div class="k">Same root</div><div class="v">${fam.map(esc).join(' · ')}</div></div>` : ''}
-          ${syn.length ? `<div><div class="k">Synonyms</div><div class="v">${syn.map(esc).join(' · ')}</div></div>` : ''}
-          ${ant.length ? `<div><div class="k">Antonyms · opposites</div><div class="v">${ant.map(esc).join(' · ')}</div></div>` : ''}
-          <div><div class="k">Your notes</div><textarea id="note" placeholder="Where you met it, how to remember it…">${esc(rec.note || '')}</textarea></div>
-          ${rec.sent && rec.sent.length ? `<div><div class="k">Your sentences</div><div class="v serif it" style="font-size:16px">${rec.sent.map(x => '“' + esc(x) + '”').join('<br>')}</div></div>` : ''}
-          <div class="k" style="margin-top:4px">Collected ${new Date(rec.a).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-          <button class="btn ghost" id="rm" style="height:44px;color:#6B6358;border-color:#CFC5B2">Remove from Treasury</button>
-        </div></div>
+        <div class="face b">${backHTML(w, e, rec, fh, { li, as, em, o, syn, ant, fam, acc })}</div>
       </div></div>
       <div class="tools"><button class="iconbtn" id="pv" aria-label="Previous card">${ICON.back}</button><button class="iconbtn" id="fl" aria-label="Flip card">${ICON.flip}</button>${treasury[w] && !as.max ? `<button class="iconbtn${as.ready ? ' ascready' : ''}" id="asc" aria-label="Ascension Trial">${ICON.ascend}</button>` : ''}<button class="iconbtn" id="nx" aria-label="Next card">${ICON.next}</button><button class="iconbtn" id="cl" aria-label="Close">${ICON.close}</button></div>
       <div class="tip">Tap the card to flip · swipe for the next</div>`;
@@ -733,9 +749,8 @@ async function openFull(words, i) {
     const ab = $('#asc', el); if (ab) ab.onclick = tryAsc;
     const ab2 = $('#ascB', el); if (ab2) ab2.onclick = tryAsc;
     const eb = $('#emB', el); if (eb) eb.onclick = ev => { ev.stopPropagation(); pickEmblem(w, e, () => draw()); };
-    const note = $('#note', el); note.onclick = ev => ev.stopPropagation();
-    note.oninput = () => { if (treasury[w]) { treasury[w].note = note.value; save.treasury(); } };
-    $('#rm', el).onclick = ev => { ev.stopPropagation(); if (confirm('Remove “' + w + '” from your Treasury?')) { unkeep(w); closeTop(); if (tab === 'treasury') renderTreasury(); } };
+    const note = $('#note', el); if (note) { note.onclick = ev => ev.stopPropagation(); note.oninput = () => { if (treasury[w]) { treasury[w].note = note.value; save.treasury(); } }; }
+    const rmb = $('#rm', el); if (rmb) rmb.onclick = ev => { ev.stopPropagation(); if (confirm('Release “' + w + '” from your Treasury? Its level and notes will be lost.')) { unkeep(w); closeTop(); if (tab === 'treasury') renderTreasury(); } };
     bindTilt();
   };
   const flip = () => { flipped = !flipped; $('#flip', el).classList.toggle('back', flipped); };
