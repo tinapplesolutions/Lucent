@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.3.2';
+const VERSION = '1.4.0';
 const WHATS_NEW = [
+  { v: '1.4.0', title: 'A new Discover', notes: ['Discover is redesigned: each category is now a bound book on your shelves, with a Word of the Moment to tempt you.', 'Recent look-ups sit just under the search bar, and the keyboard only opens when you tap it.', 'Plain meanings are now signed “Written in simple English by Lucent.”'] },
   { v: '1.3.1', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
   { v: '1.2.0', title: 'Clearer meanings', notes: ['A bigger dictionary: Wiktionary’s clearer meanings now sit alongside the old ones, which you can still open under “More meanings.”', 'Plain meanings: the first 400 words now have a simple-English meaning and example, written for Lucent. More arrive in future updates.', 'Many more words now have a confirmed pronunciation instead of an estimate (≈), and richer word origins.', 'New in Lexis: Synonym match — find the word that means the same, against a 10- or 5-second clock.', 'The dictionary refreshes once in the background (about 13 MB).'] },
   { v: '1.1.0', title: 'Cards you can hold', notes: ['Treasury cards now move like real cards: each one follows your finger, tilts, and settles into place.', 'Every word now shows its synonyms and its opposites (antonyms), below “Close in meaning.”', 'Meanings are now ordered by how commonly each is used.', 'The dictionary refreshes once in the background (about 9 MB) to add the new opposites.'] },
@@ -405,7 +406,7 @@ async function openWord(q) {
         <h1 class="wp-word">${esc(w)}</h1>
         <div class="row" style="margin-top:10px"><button class="speak" id="sp" aria-label="Hear it pronounced">${ICON.speak}</button>${pronHTML(w, e)}</div>
       </section>
-      ${plainOf(w) ? `<section class="plain"><div class="micro" style="color:var(--acc)">Plain meaning</div><div class="pm">${esc(plainOf(w)[0])}</div><div class="x">“${esc(plainOf(w)[1])}”</div><div class="by">Written in simple English for Lucent</div></section>` : '<div class="hr" style="margin:20px 0"></div>'}
+      ${plainOf(w) ? `<section class="plain"><div class="micro" style="color:var(--acc)">Plain meaning</div><div class="pm">${esc(plainOf(w)[0])}</div><div class="x">“${esc(plainOf(w)[1])}”</div><div class="by">Written in simple English by Lucent</div></section>` : '<div class="hr" style="margin:20px 0"></div>'}
       ${e.s.length ? `${plainOf(w) ? '<div class="micro" style="margin:22px 0 12px">Dictionary meanings</div>' : ''}<section class="stack" style="gap:14px">${sensesHTML(e)}</section>` : ''}
       ${e.m && e.m.length ? `<details class="more"><summary>More meanings (${e.m.length})</summary><div class="stack" style="gap:10px;margin-top:12px">${e.m.map(s => `<div style="font-size:14px;line-height:1.5"><i class="muted">${esc(s[0])}</i> — ${esc(endDot(s[1]))}</div>`).join('')}</div></details>` : ''}
       ${o ? `<section class="origin" style="margin-top:20px"><div class="micro" style="color:var(--acc)">Origin</div><div class="t">${o.html}</div></section>` : ''}
@@ -426,28 +427,58 @@ async function openWord(q) {
 /* ---------- search ---------- */
 let lastQuery = '';
 function renderSearch() {
-  view.innerHTML = `<h1 class="big">Discover</h1><div class="search" style="margin-top:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="q" type="search" placeholder="Look up a word" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Look up a word" value="${esc(lastQuery)}"></div><div class="results" id="res"></div>`;
+  view.innerHTML = `<div class="micro" style="color:var(--acc)">Discover</div><h1 class="big" style="margin-top:6px">Find your next word.</h1>
+    <label class="sbox" id="sbox"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="q" type="search" placeholder="Look up any word" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="Look up a word" value="${esc(lastQuery)}"><button class="sclear${lastQuery ? '' : ' hidden'}" id="sclear" aria-label="Clear">${ICON.close}</button></label>
+    <div class="results" id="res"></div>`;
   const q = $('#q'), res = $('#res');
   let tm;
   const run = async () => {
     const v = q.value.trim(); lastQuery = v;
-    if (!v) { res.innerHTML = catsHTML() + recentHTML(); bindRes(); bindCats(); return; }
+    $('#sclear').classList.toggle('hidden', !v);
+    if (!v) { res.innerHTML = recentHTML() + await spotlightHTML() + catsHTML(); bindRes(); bindCats(); bindSpot(); return; }
     let list;
     try { list = await Dict.prefix(v, 30); } catch { res.innerHTML = '<p class="muted" style="margin-top:20px">The word list hasn’t downloaded yet. Connect once to finish setting up.</p>'; return; }
-    if (!list.length) { res.innerHTML = `<button data-w="${esc(v)}"><span class="w">${esc(v)}</span><span class="m">look up</span></button>`; bindRes(); return; }
-    res.innerHTML = list.map(w => `<button data-w="${esc(w)}"><span class="w">${esc(w)}</span><span class="m">${inT(w) ? 'in Treasury' : ''}</span></button>`).join('');
+    if (!list.length) { res.innerHTML = `<div class="rlist"><button data-w="${esc(v)}"><span class="w">${esc(v)}</span><span class="m">look up ${ICON.next}</span></button></div>`; bindRes(); return; }
+    res.innerHTML = `<div class="rlist">${list.map(w => `<button data-w="${esc(w)}"><span class="w">${esc(w)}</span><span class="m">${inT(w) ? '<i class="tdot"></i>' : ''}${ICON.next}</span></button>`).join('')}</div>`;
     bindRes();
   };
   const bindRes = () => $$('#res [data-w]').forEach(b => b.onclick = () => { remember(b.dataset.w); openWord(b.dataset.w); });
   q.oninput = () => { clearTimeout(tm); tm = setTimeout(run, 120); };
   q.onkeydown = e => { if (e.key === 'Enter' && q.value.trim()) { remember(q.value.trim()); openWord(q.value.trim()); } };
+  $('#sclear').onclick = ev => { ev.preventDefault(); q.value = ''; run(); };
   run();
-  setTimeout(() => q.focus(), 50);
 }
+/* each shelf is bound like a book in its own material */
+const COVERS = {
+  Literary: ['#3B2418', '#2A190F', '#F2E6D2', '#D9C3A0'], Business: ['#14261F', '#0C1A14', '#EADBB0', '#D7B96E'],
+  Legal: ['#1B2433', '#121A26', '#E6E9EC', '#AEB8C6'], Medical: ['#ECE3D1', '#D9CDB4', '#1C1A17', '#6E1F2A'],
+  Science: ['#22282E', '#171C21', '#E3E8EC', '#9FB4C2'], Everyday: ['#FBF8F1', '#E6DDCB', '#1C1A17', '#6E1F2A'],
+  Ornate: ['#6E1F2A', '#4E141D', '#F6E9DA', '#E6CC86'], Whimsical: ['#0D0D0F', '#000000', '#E3E6EA', '#C7CCD1']
+};
+const coverStyle = n => { const [bg, sp, tx, ac] = COVERS[n]; return `--cv:${bg};--sp:${sp};--tx:${tx};--ac:${ac}`; };
 function catsHTML() {
-  return `<div class="micro" style="margin:24px 0 12px">Explore by category</div><div class="cats">${LX.CATS.map((c, i) => `<button class="cat" data-c="${i}"><span class="row" style="justify-content:space-between;align-items:flex-start;width:100%"><span class="cn">${esc(c.n)}</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.i}</svg></span><span class="ce">${esc(c.w.split(' ').slice(0, 2).join(' · '))}</span></button>`).join('')}</div>`;
+  return `<div class="row" style="justify-content:space-between;align-items:baseline;margin:28px 0 12px"><div class="micro">The shelves</div><div class="muted" style="font-size:12px">${LX.CATS.reduce((s, c) => s + c.w.split(' ').length, 0)} hand-picked words</div></div>
+    <div class="cats">${LX.CATS.map((c, i) => `<button class="cover" data-c="${i}" style="${coverStyle(c.n)}"><span class="spine"></span>
+      <span class="ctop"><span class="ccount">${c.w.split(' ').length} words</span><span class="cicon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.i}</svg></span></span>
+      <span class="cbot"><span class="cname">${esc(c.n)}</span><span class="cex">${esc(c.w.split(' ')[0])}</span></span></button>`).join('')}</div>`;
 }
-function bindCats() { $$('#res .cat').forEach(b => b.onclick = () => openCategory(+b.dataset.c)); }
+function bindCats() { $$('#res .cover').forEach(b => b.onclick = () => openCategory(+b.dataset.c)); }
+let spot = null;
+async function spotlightHTML() {
+  if (!spot) { const ci = Math.floor(Math.random() * LX.CATS.length), ws = LX.CATS[ci].w.split(' ').filter(w => !inT(w)); spot = { ci, w: ws[Math.floor(Math.random() * ws.length)] || LX.CATS[ci].w.split(' ')[0] }; }
+  const c = LX.CATS[spot.ci], e = await Dict.get(spot.w), p = pronOf(spot.w, e);
+  return `<div class="micro" style="margin:26px 0 12px">Word of the moment</div>
+    <article class="spot" id="spot" style="${coverStyle(c.n)}"><div class="row" style="justify-content:space-between;align-items:center"><span class="stag">From ${esc(c.n)}</span><button class="iconbtn" id="spotNew" aria-label="Another word" style="color:var(--ac);width:36px;height:36px">${ICON.shuffle.replace('<svg', '<svg width="17" height="17"')}</button></div>
+      <button class="sw" data-sw="${esc(spot.w)}"><span class="sword">${esc(spot.w)}</span>${p ? `<span class="spron">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}<span class="smean">${esc(shortDef(spot.w, e))}</span></button>
+      <div class="row" style="gap:10px;margin-top:4px"><button class="spbtn" id="spotKeep">${inT(spot.w) ? ICON.markOn + ' In your Treasury' : ICON.mark + ' Keep'}</button><button class="spbtn ghost" id="spotHear">${ICON.speak} Hear it</button></div></article>`;
+}
+function bindSpot() {
+  const s = $('#spot'); if (!s) return;
+  $('.sw', s).onclick = () => openWord(spot.w);
+  $('#spotNew').onclick = async () => { spot = null; s.outerHTML = (await spotlightHTML()).replace(/^[\s\S]*?(<article)/, '$1'); bindSpot(); };
+  $('#spotKeep').onclick = () => { if (!inT(spot.w)) { keep(spot.w); $('#spotKeep').innerHTML = ICON.markOn + ' In your Treasury'; } else openWord(spot.w); };
+  $('#spotHear').onclick = () => speak(spot.w);
+}
 const catDecks = {};
 async function openCategory(ci) {
   const c = LX.CATS[ci];
@@ -459,9 +490,12 @@ async function openCategory(ci) {
     const five = catDecks[ci].splice(0, 5);
     if (catDecks[ci].length < 5) catDecks[ci] = catDecks[ci].concat(deckFor().filter(w => !five.includes(w)));
     const rows = await Promise.all(five.map(async w => { const e = await Dict.get(w); return { w, e, p: pronOf(w, e) }; }));
-    body.innerHTML = `<div class="row" style="gap:10px;margin-top:4px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.i}</svg><h1 class="big">${esc(c.n)}</h1></div>
-      <p class="serif it muted" style="font-size:17px;margin:6px 0 10px">${esc(c.d)}</p>
-      <div>${rows.map(r => `<div class="crow"><button class="cw" data-w="${esc(r.w)}"><span class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:25px;font-weight:500;line-height:1">${esc(r.w)}</span>${r.p ? `<span class="muted" style="font-size:12px">${esc(r.p.r || '')}${r.p.est ? ' ≈' : ''}</span>` : ''}</span><span style="font-size:13.5px;line-height:1.4;color:var(--ink2)">${esc(shortDef(r.w, r.e))}</span></button>
+    const kept = c.w.split(' ').filter(inT).length, total = c.w.split(' ').length;
+    body.innerHTML = `<section class="hero" style="${coverStyle(c.n)}"><span class="spine"></span>
+        <div class="row" style="justify-content:space-between;align-items:flex-start"><span class="ccount">${total} words · ${kept} kept</span><span class="cicon big"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${c.i}</svg></span></div>
+        <div class="stack" style="gap:6px"><h1 class="hname">${esc(c.n)}</h1><p class="hdesc">${esc(c.d)}</p></div>
+        <div class="hbar"><i style="width:${Math.round(kept / total * 100)}%"></i></div></section>
+      <div class="stack" style="gap:10px;margin-top:18px">${rows.map((r, k) => `<div class="wcard" style="animation-delay:${k * 50}ms"><button class="cw" data-w="${esc(r.w)}"><span class="row" style="gap:10px;align-items:baseline;flex-wrap:wrap"><span class="serif" style="font-size:26px;font-weight:500;line-height:1">${esc(r.w)}</span>${r.p ? `<span class="muted" style="font-size:12px">${esc(r.p.r || '')}${r.p.est ? ' ≈' : ''}</span>` : ''}</span><span style="font-size:13.5px;line-height:1.45;color:var(--ink2)">${esc(shortDef(r.w, r.e))}</span></button>
         <button class="keepc${inT(r.w) ? ' on' : ''}" data-k="${esc(r.w)}" aria-label="${inT(r.w) ? 'In your Treasury' : 'Keep ' + esc(r.w)}">${inT(r.w) ? ICON.markOn : ICON.mark}</button></div>`).join('')}</div>
       <button class="btn" id="shuf" style="margin-top:18px">${ICON.shuffle} Shuffle five more</button>`;
     $$('.cw', body).forEach(b => b.onclick = () => openWord(b.dataset.w));
@@ -473,8 +507,8 @@ async function openCategory(ci) {
 function remember(w) { const r = store.get('recent', []).filter(x => x !== w); r.unshift(w); store.set('recent', r.slice(0, 12)); }
 function recentHTML() {
   const r = store.get('recent', []);
-  if (!r.length) return '<p class="muted serif it" style="font-size:18px;margin-top:24px">Every word you look up waits here.</p>';
-  return '<div class="micro" style="margin:22px 0 4px">Recent</div>' + r.map(w => `<button data-w="${esc(w)}"><span class="w">${esc(w)}</span><span class="m">${inT(w) ? 'in Treasury' : ''}</span></button>`).join('');
+  if (!r.length) return '';
+  return `<div class="micro" style="margin:22px 0 10px">Recent</div><div class="recent">${r.map(w => `<button class="rchip" data-w="${esc(w)}">${esc(w)}</button>`).join('')}</div>`;
 }
 
 /* ---------- cards ---------- */
