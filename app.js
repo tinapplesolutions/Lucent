@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.7.0';
+const VERSION = '1.7.1';
 const WHATS_NEW = [
+  { v: '1.7.1', title: 'A gentler Sentence Judge', notes: ['The judge now uses at most two processor cores, so a check never works your whole phone at once.', 'Its helper threads go to sleep the moment a check is done instead of idling at full speed.', 'The judge unloads itself a minute after your last sentence, and whenever you leave Lucent, so nothing stays loaded in the background.', 'Setup is lighter: the AI is prepared once instead of two or three times.'] },
   { v: '1.7.0', title: 'The Sentence Judge', notes: ['Lucent can now read the sentences you write and judge whether each word is used with its true meaning. It is a small AI that lives on your phone: download it once (580 MB, Wi-Fi recommended) from Profile, and it works offline. Nothing you write leaves your phone.', 'Your own sentence in Lexis no longer shows the meaning. You get a random word from your Treasury and must show you know it. If you miss, Lucent reveals the meaning so you can try again.', 'The Ascension Trials to Fluent and Silver-Tongued now end with three sentences of your own, read by the judge. If one is rejected, you get one rewrite before it counts as a mistake.', 'The judge is accurate but not perfect, about 9 in 10 on our tests, so a clever misuse may occasionally slip past.'] },
   { v: '1.6.0', title: 'Collectible cards and the Ascension Trial', notes: ['Every Treasury card is now a glossy collectible. The higher its level, the grander it looks: plain folio, linen, tooled leather, a gold Greek key border, and finally engraved silver set with diamonds.', 'Each card carries an emblem that matches the word’s meaning (an owl for wisdom, scales for balance). Don’t like one? Flip the card and choose another.', 'Cards now rise only through their own Ascension Trial. Answer every question correctly to climb; one mistake and the card must wait before trying again. Each level also needs a few days of rest before the next trial.', 'Lexis exercises are now pure practice and no longer level up cards. Your cards keep the levels they already earned.'] },
   { v: '1.5.1', title: 'A new home and practice room', notes: ['Today is redesigned: your word of the day framed like a book cover, three new words to swipe through, and Word Lore set like a page from a fine book.', 'Lexis is now a practice room: a suggested exercise for today, and every exercise stacked like book spines.'] },
@@ -1090,7 +1091,7 @@ async function startEx(id) {
 
 /* ---------- Sentence Judge: a small AI on the phone that checks how a word is used ---------- */
 const JUDGE_SIZE = '580 MB';
-const JUDGE_T = 0.3;          // calibrated on hand-written test sentences
+const JUDGE_T = 0.95;         // calibrated on 435 test sentences (45 hand-written tricky ones)
 const MIN_WORDS = 6;
 const Judge = {
   w: null, n: 0, wait: {}, prog: null, onprog: null, device: null,
@@ -1109,22 +1110,26 @@ const Judge = {
   },
   call(msg) { return new Promise((res, rej) => { msg.id = ++this.n; this.wait[msg.id] = m => m.type === 'error' ? rej(new Error(m.message)) : res(m); this.worker().postMessage(msg); }); },
   load() { return this.call({ type: 'load', device: settings.judgeDev || 'wasm' }); },
-  warm() { if (this.ready()) this.load().catch(() => { }); },
-  restart() { if (this.w) { this.w.terminate(); this.w = null; } },
+  warm() { if (this.ready() && !this.w) this.load().then(() => this.rest()).catch(() => { }); },
+  restart() { clearTimeout(this.idle); if (this.w) { this.w.terminate(); this.w = null; } const ws = this.wait; this.wait = {}; Object.values(ws).forEach(f => f({ type: 'error', message: 'The judge was put to rest.' })); },
+  /* unload the judge a minute after the last check (and whenever Lucent leaves the screen): nothing stays loaded or running */
+  rest() { clearTimeout(this.idle); this.idle = setTimeout(() => this.restart(), 60000); },
   async install(onprog, onstage) {
     this.onprog = onprog;
     try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch { }
     await this.call({ type: 'load', device: 'wasm' });          // 1) download once (kept offline)
-    this.restart();                                              // start fresh: frees the memory the download used
-    // 2) pick the faster engine on this phone: the graphics chip if it is quick and agrees, else the processor
-    const probe = { type: 'score', word: 'frugal', meaning: 'Careful with money; not wasting it', sentence: 'Being frugal, he reused envelopes and never bought coffee out.' };
-    if (onstage) onstage('Testing the speed on this phone…');
-    let dev = 'wasm';
-    try {
-      const g = await this.call({ type: 'load', device: 'webgpu' });
-      if (g.device === 'webgpu') { const t = await this.call({ ...probe }); if (t.score > 0 && t.ms < 4000) dev = 'webgpu'; }
-    } catch { }
-    if (dev !== 'webgpu') { this.restart(); await this.call({ type: 'load', device: 'wasm' }); await this.call({ ...probe }); }
+    // 2) only if this phone offers a graphics chip to the browser, try it once; it is far more power-efficient when it works
+    let dev = 'wasm', gpu = false;
+    try { gpu = !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch { }
+    if (gpu) {
+      if (onstage) onstage('Testing the graphics chip…');
+      this.restart();
+      try {
+        const g = await this.call({ type: 'load', device: 'webgpu' });
+        if (g.device === 'webgpu') { const t = await this.call({ type: 'score', word: 'frugal', meaning: 'Careful with money; not wasting it', sentence: 'Being frugal, he reused envelopes and never bought coffee out.' }); if (t.score > 0 && t.ms < 4000) dev = 'webgpu'; }
+      } catch { }
+    }
+    this.restart();                                              // unload: the judge loads again only when you write
     settings.judgeDev = dev; settings.judge = 'ready'; save.settings();
     return dev;
   },
@@ -1147,7 +1152,8 @@ const Judge = {
     if (others.some(o => sim(o, s) > 0.75)) return { ok: false, why: 'same', note: 'Too close to a sentence you already wrote. Try a fresh situation.' };
     const meaning = (pl ? pl[0] : shortDef(word, e)).replace(/\.$/, '');
     if (!this.w) await this.load();
-    const r = await this.call({ type: 'score', word, meaning, sentence: s });
+    clearTimeout(this.idle);
+    let r; try { r = await this.call({ type: 'score', word, meaning, sentence: s }); } finally { this.rest(); }
     return r.score >= JUDGE_T ? { ok: true, score: r.score, ms: r.ms } : { ok: false, why: 'meaning', score: r.score, ms: r.ms, note: `This doesn’t seem to use “${word}” with its true meaning.` };
   }
 };
@@ -1270,7 +1276,7 @@ async function ascendTrial(w, onDone) {
     <h1 class="big" style="font-size:32px;margin:6px 0 0">The Ascension Trial</h1>
     <p class="muted" style="font-size:15px;line-height:1.5;margin:0;max-width:320px">${st.writes ? `${qs.length - 1} questions on “${esc(w)}”, then ${WRITE_N} sentences of your own, read by the Sentence Judge.` : `${qs.length} questions on “${esc(w)}”.`} Get every one right and the card rises to <b style="color:var(--ink)">${to}</b>. One mistake ends the trial, and the card must wait ${FAIL_DAYS[lv]} day${FAIL_DAYS[lv] > 1 ? 's' : ''} to try again.</p>
     ${st.writes && !Judge.ready() ? `<div class="jneed"><b>This trial needs the Sentence Judge.</b><span>It reads your ${WRITE_N} sentences. Download it once and it works offline.</span></div><button class="btn" id="tjs" style="margin-top:6px">Set up the Sentence Judge</button>` : `<button class="btn" id="tbeg" style="margin-top:6px">Begin</button>`}</div>`;
-  if (st.writes && Judge.ready()) Judge.warm();
+
   let qi = 0;
   const head = () => `<div class="tsteps">${qs.map((_, k) => `<i class="${k < qi ? 'done' : k === qi ? 'now' : ''}"></i>`).join('')}</div><div class="micro" style="text-align:center;margin-top:8px">Question ${qi + 1} of ${qs.length}</div>`;
   const lose = () => {
@@ -1303,6 +1309,7 @@ async function ascendTrial(w, onDone) {
     const q = qs[qi];
     if (q.write) {
       let k = 0, retried = false;
+      Judge.warm();
       const page = (msg) => {
         body.innerHTML = head() + `<div class="stack" style="gap:16px;margin-top:26px">
           <div class="micro" style="color:var(--acc)">Your own sentence · ${k + 1} of ${WRITE_N}</div>
@@ -1746,6 +1753,7 @@ async function registerSW() {
     reg.addEventListener('updatefound', () => watch(reg.installing));
     const check = () => reg.update().catch(() => { });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Judge.restart(); });
     setInterval(check, 30 * 60 * 1000);
     let reloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloaded) return; reloaded = true; location.reload(); });

@@ -8,7 +8,8 @@ env.allowLocalModels = false;
 env.useBrowserCache = true;
 const LIB = new URL('./lib/', self.location).href;
 env.backends.onnx.wasm.wasmPaths = { mjs: LIB + 'ort-wasm-simd-threaded.asyncify.mjs', wasm: LIB + 'ort-wasm-simd-threaded.asyncify.wasm' };
-if (self.crossOriginIsolated) env.backends.onnx.wasm.numThreads = Math.min(4, (self.navigator.hardwareConcurrency || 2));
+// gentle on the phone: at most 2 cores, so a check never pins the whole processor
+env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? Math.min(2, self.navigator.hardwareConcurrency || 1) : 1;
 
 /* Chrome's processor engine lacks one compressed-lookup block this model uses; Lucent ships the same model
    graph with that block rebuilt from basic math (identical results), and swaps it in here. */
@@ -42,7 +43,9 @@ async function load(pref) {
     let want = 'wasm';
     if (pref === 'webgpu' || !pref || pref === 'auto') { try { if (self.navigator.gpu) { const ad = await self.navigator.gpu.requestAdapter(); if (ad) want = 'webgpu'; } } catch { } }
     if (pref === 'wasm') want = 'wasm';
-    const opts = d => ({ dtype: 'q4', device: d, use_external_data_format: EXT, progress_callback: progress });
+    // no 'spinning': helper threads sleep the moment a check is done instead of busy-waiting for more work
+    const opts = d => ({ dtype: 'q4', device: d, use_external_data_format: EXT, progress_callback: progress,
+      session_options: { extra: { session: { intra_op: { allow_spinning: '0' }, inter_op: { allow_spinning: '0' } } } } });
     try { model = await AutoModelForCausalLM.from_pretrained(MODEL, opts(want)); device = want; }
     catch (e) { if (want !== 'webgpu') throw e; model = await AutoModelForCausalLM.from_pretrained(MODEL, opts('wasm')); device = 'wasm'; }
     const first = s => tok.encode(s, { add_special_tokens: false })[0];
@@ -55,7 +58,7 @@ const lse = a => { const m = Math.max(...a); return m + Math.log(a.reduce((s, x)
 async function score(word, meaning, sentence) {
   if (!model) await load();
   const msgs = [{ role: 'system', content: SYS }, { role: 'user', content: ask(word, meaning, sentence) }];
-  const text = tok.apply_chat_template(msgs, { tokenize: false, add_generation_prompt: true }) + (/qwen3/i.test(MODEL) ? '<think>\n\n</think>\n\n' : '');
+  const text = tok.apply_chat_template(msgs, { tokenize: false, add_generation_prompt: true });   // the model's own template already skips 'thinking'
   const enc = tok(text);
   const out = await model(enc);
   const L = out.logits, T = L.dims[1], V = L.dims[2];
