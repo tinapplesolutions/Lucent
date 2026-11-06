@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const WHATS_NEW = [
+  { v: '1.5.0', title: 'Today and Lexis, restyled', notes: ['Today now matches Discover: your word of the day shown in its card’s own material, a sleeker deck of new words, and Word Lore bound like a black book.', 'Lexis shows your stats at a glance, and each exercise is now a book on the shelf.'] },
   { v: '1.4.0', title: 'A new Discover', notes: ['Discover is redesigned: each category is now a bound book on your shelves, with a Word of the Moment to tempt you.', 'Recent look-ups sit just under the search bar, and the keyboard only opens when you tap it.', 'Plain meanings are now signed “Written in simple English by Lucent.”'] },
   { v: '1.3.1', title: 'Discover, seals and a new face', notes: ['Search is now Discover: look up any word, or explore eight categories — Literary, Business, Legal, Medical, Science, Everyday, Ornate and Whimsical. Each gives five words to learn, with a shuffle for five more.', 'Seals are now real wax seals, each showing what it’s for, from common wine-red to the legendary silver Eloquentia seal. Tap one in Profile to see it up close.', 'A new app icon: the Lucent wax seal. Your phone may take a few days to show it.', '180 more plain meanings, written for the new categories.'] },
   { v: '1.2.0', title: 'Clearer meanings', notes: ['A bigger dictionary: Wiktionary’s clearer meanings now sit alongside the old ones, which you can still open under “More meanings.”', 'Plain meanings: the first 400 words now have a simple-English meaning and example, written for Lucent. More arrive in future updates.', 'Many more words now have a confirmed pronunciation instead of an estimate (≈), and richer word origins.', 'New in Lexis: Synonym match — find the word that means the same, against a 10- or 5-second clock.', 'The dictionary refreshes once in the background (about 13 MB).'] },
@@ -765,31 +766,34 @@ async function todayPlan() {
 }
 
 /* ---------- today ---------- */
+const LEVEL_COVERS = [['#FBF8F1', '#E6DDCB', '#1C1A17', '#6E1F2A'], ['#ECE3D1', '#D9CDB4', '#1C1A17', '#6E1F2A'], ['#3B2418', '#2A190F', '#F2E6D2', '#D9C3A0'], ['#14261F', '#0C1A14', '#EADBB0', '#D7B96E'], ['#0D0D0F', '#000000', '#E3E6EA', '#C7CCD1']];
+const levelStyle = li => { const [bg, sp, tx, ac] = LEVEL_COVERS[li]; return `--cv:${bg};--sp:${sp};--tx:${tx};--ac:${ac}`; };
 async function renderToday() {
   const now = new Date(), h = now.getHours();
   const hello = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
   const date = (now.toLocaleDateString('en-GB', { weekday: 'long' }) + ' · ' + now.getDate() + ' ' + now.toLocaleDateString('en-GB', { month: 'long' })).toUpperCase();
-  view.innerHTML = `<section class="stack" style="gap:4px"><div class="micro" style="color:var(--acc)">${esc(date)}</div><h1 class="greet">${hello}, ${esc(profile ? profile.name : '')}.</h1></section>
+  view.innerHTML = `<div class="micro" style="color:var(--acc)">${esc(date)}</div><h1 class="big" style="margin-top:6px">${hello}, ${esc(profile ? profile.name : '')}.</h1>
+    <p class="serif it muted" style="font-size:17px;margin:6px 0 0">Today, in words.</p>
     <div id="wotd"></div><div id="news"></div><div id="lore"></div>
-    <button class="linkrow" id="toLex"><span class="stack" style="gap:2px"><span class="serif" style="font-size:20px;font-weight:500">Sharpen your tongue</span><span class="muted" style="font-size:12px">Practise your Treasury words in Lexis</span></span><span style="color:var(--acc);width:20px;height:20px">${ICON.arrow}</span></button>`;
+    <div class="micro" style="margin:28px 0 12px">Practice</div>
+    <button class="cta" id="toLex" style="${coverStyle('Ornate')}"><span class="spine"></span><span class="stack" style="gap:4px;text-align:left"><span class="cname" style="font-size:26px">Sharpen your tongue</span><span class="cex">Six ways to practise your Treasury words</span></span><span class="ctaarrow">${ICON.arrow}</span></button>`;
   $('#toLex').onclick = () => go('lexis');
   renderLore();
   let plan; try { plan = await todayPlan(); } catch { $('#news').innerHTML = '<p class="muted" style="margin-top:22px">Today’s words will appear once the library has downloaded.</p>'; return; }
   if (tab !== 'today') return;
-  // word of the day
   const wd = plan.wotd && treasury[plan.wotd] ? plan.wotd : null;
   const wb = $('#wotd');
   if (wd) {
-    const e = await Dict.get(wd), p = pronOf(wd, e), li = lvlIdx(treasury[wd].c), s = e ? e.s[0] : null;
-    wb.innerHTML = `<section class="sec"><div class="micro">Word of the day · from your Treasury</div>
-      <div class="card f${Math.min(li, 3)}" style="padding:18px 18px 16px 20px;gap:8px;box-shadow:var(--card-sh)" id="wcard"><div class="row" style="justify-content:space-between;align-items:flex-start">
-        <div class="stack" style="gap:4px"><div class="lv">${LX.CARD_LEVELS[li].n}${s ? ' · ' + esc(s[0]) : ''}</div><div class="w" style="font-size:${Math.min(40, wordSize(wd, true))}px">${esc(wd)}</div>${p ? `<div class="pr" style="font-size:13px">${esc(p.r || '')}${p.est ? ' ≈' : ''}</div>` : ''}</div>
-        <button class="speak" id="wsp" style="border-color:currentColor;color:inherit" aria-label="Hear it pronounced">${ICON.speak}</button></div>
-        ${s ? `<div style="font-size:14px;line-height:1.5;margin-top:8px">${esc(shortDef(wd, e))}</div>` : ''}</div></section>`;
-    $('#wsp').onclick = ev => { ev.stopPropagation(); speak(wd); };
-    $('#wcard').onclick = () => openWord(wd);
+    const e = await Dict.get(wd), p = pronOf(wd, e), li = lvlIdx(treasury[wd].c), s = e && e.s ? e.s[0] : null;
+    wb.innerHTML = `<div class="row" style="justify-content:space-between;align-items:baseline;margin:26px 0 12px"><div class="micro">Word of the day</div><div class="muted" style="font-size:12px">from your Treasury</div></div>
+      <article class="spot" style="${levelStyle(li)}"><div class="row" style="justify-content:space-between;align-items:center"><span class="stag">${LX.CARD_LEVELS[li].n}${s ? ' · ' + esc(s[0]) : ''}</span></div>
+        <button class="sw" id="wopen"><span class="sword">${esc(wd)}</span>${p ? `<span class="spron">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}<span class="smean">${esc(shortDef(wd, e))}</span></button>
+        <div class="row" style="gap:10px;margin-top:4px"><button class="spbtn" id="wcardb">${ICON.flip} Open card</button><button class="spbtn ghost" id="wsp">${ICON.speak} Hear it</button></div></article>`;
+    $('#wopen').onclick = () => openWord(wd);
+    $('#wsp').onclick = () => speak(wd);
+    $('#wcardb').onclick = () => { const ws = Object.keys(treasury).sort((a, b) => treasury[b].a - treasury[a].a); openFull(ws, Math.max(0, ws.indexOf(wd))); };
   } else {
-    wb.innerHTML = `<section class="sec"><div class="micro">Word of the day</div><div class="note"><div class="serif" style="font-size:20px">Your first card is waiting.</div><div class="muted" style="font-size:13px;margin-top:6px">Keep a word below, and tomorrow it can return as your word of the day.</div></div></section>`;
+    wb.innerHTML = `<div class="micro" style="margin:26px 0 12px">Word of the day</div><article class="spot" style="${levelStyle(0)}"><span class="stag">Your first card</span><span class="smean" style="font-size:22px">Your first card is waiting.</span><span style="font-size:13px;opacity:.75">Keep a word below, and tomorrow it can return as your word of the day.</span></article>`;
   }
   renderDeck(plan);
 }
@@ -797,14 +801,15 @@ async function renderDeck(plan) {
   const box = $('#news'); if (!box) return;
   const cur = plan.news[plan.i];
   if (!cur) {
-    box.innerHTML = `<section class="sec"><div class="micro">Today’s new words</div><div class="note"><div class="serif" style="font-size:20px">That’s today’s three.</div><div class="muted" style="font-size:13px;margin-top:6px">New words arrive tomorrow, chosen around your Treasury.</div></div></section>`;
+    box.innerHTML = `<div class="micro" style="margin:28px 0 12px">Today’s new words</div><article class="spot" style="${levelStyle(1)}"><span class="stag">All three met</span><span class="smean" style="font-size:22px">That’s today’s three.</span><span style="font-size:13px;opacity:.75">New words arrive tomorrow, chosen around your Treasury. Want more now? Try a shelf in Discover.</span></article>`;
     return;
   }
   const e = await Dict.get(cur.w), p = pronOf(cur.w, e), s = e ? e.s[0] : null;
-  box.innerHTML = `<section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Today’s new words</div><div class="muted" style="font-size:12px">${plan.i + 1} of ${plan.news.length}</div></div>
+  const dots = plan.news.map((_, k) => `<i class="${k < plan.i ? 'done' : k === plan.i ? 'on' : ''}"></i>`).join('');
+  box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center;margin:28px 0 12px"><div class="micro">Today’s new words</div><div class="ndots">${dots}</div></div>
     <div class="deck">${plan.i < plan.news.length - 2 ? '<div class="l2"></div>' : ''}${plan.i < plan.news.length - 1 ? '<div class="l1"></div>' : ''}
-      <button class="top" id="dtop"><div class="why">${cur.why}</div><div class="stack" style="gap:4px"><div class="serif" style="font-size:${Math.min(36, wordSize(cur.w, true))}px;font-weight:500;line-height:1">${esc(cur.w)}</div>${p ? `<div class="muted" style="font-size:13px">${esc(p.r || '')}${p.est ? ' ≈' : ''}</div>` : ''}</div><div style="font-size:14px;line-height:1.45">${esc(shortDef(cur.w, e))}</div></button></div>
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px"><button class="btn ghost" id="dPass" style="height:48px">Pass</button><button class="btn" id="dKeep" style="height:48px">Keep</button></div></section>`;
+      <button class="top" id="dtop"><span class="why">${cur.why}</span><span class="stack" style="gap:4px"><span class="sword" style="font-size:${Math.min(42, wordSize(cur.w, true))}px">${esc(cur.w)}</span>${p ? `<span class="muted" style="font-size:13px">${esc(p.r || '')}${p.est ? ' ≈' : ''}</span>` : ''}</span><span class="smean" style="font-size:18px;margin:0">${esc(shortDef(cur.w, e))}</span></button></div>
+    <div class="deckbtns"><button class="pill ghost" id="dPass">${ICON.close} Pass</button><button class="pill" id="dKeep">${ICON.mark} Keep</button></div>`;
   const next = (kept) => {
     const top = $('#dtop'); top.style.transform = `translateX(${kept ? 120 : -120}%) rotate(${kept ? 8 : -8}deg)`; top.style.opacity = 0;
     if (kept) keep(cur.w); else { passed.push(cur.w); save.passed(); }
@@ -821,31 +826,45 @@ async function renderDeck(plan) {
 function renderLore() {
   const L = LX.LORE, x = L[((dayIndex() % L.length) + L.length) % L.length];
   const [w, era, k, t, note] = x;
-  $('#lore').innerHTML = `<section class="sec"><div class="micro">Word Lore</div><article class="lore">
-    <div class="row" style="justify-content:space-between;align-items:baseline"><div class="w">${esc(w)}</div><div class="era">${esc(era)}</div></div>
-    <div class="t">${esc(t)}</div>
-    <div class="f"><span class="tag">${k === 'fact' ? 'Recorded history' : 'A popular story'}${note ? ' · ' + esc(note) : ''}</span>
-    <button class="iconbtn" id="lmark" style="color:#C7CCD1;flex-shrink:0" aria-label="${inT(w) ? 'In your Treasury' : 'Add ' + esc(w) + ' to Treasury'}">${inT(w) ? ICON.markOn : ICON.mark}</button></div></article></section>`;
+  $('#lore').innerHTML = `<div class="micro" style="margin:28px 0 12px">Word Lore</div><article class="lorecv" style="${coverStyle('Whimsical')}"><span class="spine"></span>
+    <div class="row" style="justify-content:space-between;align-items:center"><span class="stag">${esc(era)}</span><span class="ltag">${k === 'fact' ? 'Recorded history' : 'A popular story'}</span></div>
+    <div class="sword" style="font-size:40px">${esc(w)}</div>
+    <div class="ltext">${esc(t)}</div>
+    <div class="row" style="justify-content:space-between;align-items:center;gap:10px;border-top:1px solid rgba(255,255,255,.12);padding-top:12px">${note ? `<span style="font-size:11px;opacity:.6;letter-spacing:.4px">${esc(note)}</span>` : '<span></span>'}
+    <button class="spbtn" id="lmark">${inT(w) ? ICON.markOn + ' Kept' : ICON.mark + ' Keep'}</button></div></article>`;
   $('#lmark').onclick = () => { if (!inT(w)) { keep(w); renderLore(); } else openWord(w); };
 }
 
 /* ---------- lexis ---------- */
 const EXERCISES = [
-  { id: 'meaning', n: 'Meaning match', d: 'See the word, choose its meaning.' },
-  { id: 'reverse', n: 'Reverse', d: 'See the meaning, choose the word.' },
-  { id: 'blank', n: 'Fill the blank', d: 'Complete the sentence.' },
-  { id: 'spell', n: 'Hear & spell', d: 'Listen, then write it.' },
-  { id: 'sentence', n: 'Your own sentence', d: 'Use the word yourself. Saved to its card.' },
-  { id: 'synonym', n: 'Synonym match', d: 'Find the word that means the same — against the clock.' }
+  { id: 'meaning', n: 'Meaning match', d: 'See the word, choose its meaning.', short: 'See the word, pick its meaning' },
+  { id: 'reverse', n: 'Reverse', d: 'See the meaning, choose the word.', short: 'See the meaning, pick the word' },
+  { id: 'blank', n: 'Fill the blank', d: 'Complete the sentence.', short: 'Complete the sentence' },
+  { id: 'spell', n: 'Hear & spell', d: 'Listen, then write it.', short: 'Listen, then write it' },
+  { id: 'sentence', n: 'Your own sentence', d: 'Use the word yourself. Saved to its card.', short: 'Use it in your own words' },
+  { id: 'synonym', n: 'Synonym match', d: 'Find the word that means the same — against the clock.', short: 'Same meaning, against the clock' }
 ];
+const EX_LOOK = {
+  meaning: ['Literary', '<path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M9.5 10a2.5 2.5 0 1 1 3 2.4V14"/><path d="M12 16.8h.01"/>'],
+  reverse: ['Medical', '<path d="M4 8h14l-3-3"/><path d="M20 16H6l3 3"/>'],
+  blank: ['Legal', '<path d="M4 7h16"/><path d="M4 12h5"/><path d="M15 12h5"/><path d="M10 14h4"/><path d="M4 17h10"/>'],
+  spell: ['Everyday', '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/>'],
+  sentence: ['Ornate', '<path d="M20 4C12 5 7 10 5 19c5-2 11-6 15-15z"/><path d="M5 19l5-5"/>'],
+  synonym: ['Business', '<circle cx="12" cy="13.5" r="7"/><path d="M12 10v3.5l2.5 2"/><path d="M9.5 3h5"/>']
+};
 function renderLexis() {
-  const n = Object.keys(treasury).length;
-  view.innerHTML = `<h1 class="big">Lexis</h1><p class="serif it muted" style="font-size:17px;margin:6px 0 0">The best way to remember a word is to use it.</p>
-    <div class="row" style="gap:10px;margin-top:18px"><span class="chip">${n} in Treasury</span><span class="chip">${streak() ? streak() + '-day streak' : 'No streak yet'}</span></div>
-    <div class="stack" style="gap:10px;margin-top:20px">${EXERCISES.map((x, i) => `<button class="ex" data-x="${x.id}"><span class="num">${['i', 'ii', 'iii', 'iv', 'v', 'vi'][i]}</span><span class="stack"><b>${x.n}</b><span>${x.d}</span></span></button>`).join('')}</div>
+  const n = Object.keys(treasury).length, st = streak();
+  const acc = stats.ok + stats.bad ? Math.round(stats.ok / (stats.ok + stats.bad) * 100) + '%' : '—';
+  view.innerHTML = `<div class="micro" style="color:var(--acc)">Lexis</div><h1 class="big" style="margin-top:6px">Sharpen your tongue.</h1>
+    <p class="serif it muted" style="font-size:17px;margin:6px 0 0">The best way to remember a word is to use it.</p>
+    <section class="stats" style="margin-top:18px"><div><b>${n}</b><span>in Treasury</span></div><div><b>${st}</b><span>day streak</span></div><div><b>${acc}</b><span>accuracy</span></div></section>
+    <div class="row" style="justify-content:space-between;align-items:baseline;margin:28px 0 12px"><div class="micro">The exercises</div><div class="muted" style="font-size:12px">tap to begin</div></div>
+    <div class="cats">${EXERCISES.map((x, i) => `<button class="cover ex6" data-x="${x.id}" style="${coverStyle(EX_LOOK[x.id][0])}"><span class="spine"></span>
+      <span class="ctop"><span class="ccount">${['I', 'II', 'III', 'IV', 'V', 'VI'][i]}${x.id === 'synonym' ? ' · timed' : ''}</span><span class="cicon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${EX_LOOK[x.id][1]}</svg></span></span>
+      <span class="cbot"><span class="cname" style="font-size:22px">${x.n}</span><span class="cex" style="font-size:14px">${x.short}</span></span></button>`).join('')}</div>
     ${n < 1 ? '<p class="muted" style="font-size:13px;margin-top:16px">Keep at least one word in your Treasury to begin.</p>' : ''}
-    <p class="muted" style="font-size:12px;margin-top:18px;line-height:1.5">Each correct answer in exercises i–iv and vi raises that word’s card. Cards level up at 3, 8, 15 and 30 correct answers.</p>`;
-  $$('.ex').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } b.dataset.x === 'synonym' ? synonymSetup() : startEx(b.dataset.x); });
+    <div class="note" style="margin-top:22px;box-shadow:none"><div class="micro" style="margin-bottom:6px">How cards level up</div><div style="font-size:13px;line-height:1.55;color:var(--ink2)">Every correct answer in I–IV and VI raises that word’s card: Acquaintance at 3, Familiar at 8, Fluent at 15, Silver-Tongued at 30.</div></div>`;
+  $$('.ex6').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } b.dataset.x === 'synonym' ? synonymSetup() : startEx(b.dataset.x); });
 }
 function pickForPractice(k, needEx) {
   const now = Date.now();
