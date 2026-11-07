@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.8.0';
+const VERSION = '1.8.1';
 const WHATS_NEW = [
+  { v: '1.8.1', title: 'Small polish', notes: ['The Discover tab is now called Dictionary on the bottom bar. The page itself is still Discover.', 'Your palate name in Profile shows its italics properly.'] },
   { v: '1.8.0', title: 'New seals, a living palate and a steadier climb', notes: ['Eight new seals to earn: Spartan (300 words), Centurion (100-day streak), Argentum, Aurum and Adamant (25, 50 and 100 ascensions), Magna and Summa Cum Laude (5 and 10 Silver-Tongued cards), and Lucent, the grandest of all.', 'Earning a seal now lights up the whole screen, wherever you are. The rarer the seal, the grander the glow.', 'Your palate chart now sits in Profile and follows the words you keep, blending your first taste test with your Treasury.', 'Ascension: one card may rise each day. A new card takes its first trial the next day, rests 7 days after each climb, and waits 3 days after a lost trial.', 'Flawless now asks for 25 correct answers in a row, and Wordsmith counts only sentences the Sentence Judge accepts.'] },
   { v: '1.7.4', title: 'Smoother updates', notes: ['Fixed the update button getting stuck on “Updating…” when two updates arrived close together. Updates now finish in a few seconds, and Lucent reloads by itself if anything is slow.'] },
   { v: '1.7.3', title: 'Card backs, reborn', notes: ['The back of every card now matches its front: the same material and engraved border, laid out like the bookplate in an old library book.', 'Meanings, origin, synonyms and your own sentences sit between ornaments, with your notes on lined paper.', 'To release a word from your Treasury, tap the small round bin at the bottom of its back.'] },
@@ -1537,7 +1538,7 @@ function renderProfile() {
     <section class="sec"><div class="micro">Your collection</div>
       <div class="collbar">${tw.length ? counts.map((n, i) => n ? `<span style="flex-grow:${n};background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></span>` : '').join('') : ''}</div>
       <div class="legend">${LX.CARD_LEVELS.map((l, i) => `<div><i style="background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></i><span>${l.n}</span><b>${counts[i]}</b></div>`).join('')}</div></section>
-    ${profile.palate ? `<section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Your palate</div><button class="linkbtn" id="pal" style="font-size:13px">${esc(profile.palate.title)}</button></div>
+    ${profile.palate ? `<section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Your palate</div><button class="linkbtn" id="pal" style="font-size:13px">${esc(profile.palate.title).replace(/&lt;(\/?)i&gt;/g, '<$1i>')}</button></div>
       <div class="palwrap" id="palchart">${radarSVG(palCache ? palCache.chartBlend || profile.palate.chart : profile.palate.chart, true)}</div>
       <p class="muted palnote" id="palnote">Reading your Treasury…</p></section>` : ''}
     <section class="sec"><div class="micro">Seals · ${Object.keys(seals).length} of ${LX.SEALS.length}</div><div class="seals">${LX.SEALS.map(s => `<button class="seal ${seals[s.id] ? 'on' : 'off'}" data-s="${s.id}" aria-label="${esc(s.n)}${seals[s.id] ? '' : ', not yet earned'}">${sealSVG(s.id, 78)}<span>${esc(s.n)}</span></button>`).join('')}</div></section>
