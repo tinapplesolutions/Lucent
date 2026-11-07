@@ -157,15 +157,23 @@ LX.CARD_LEVELS = [
 ];
 LX.RANKS = ['Apprentice', 'Scribe', 'Wordsmith', 'Orator', 'Laureate'];
 LX.SEALS = [
-  { id: 'first', n: 'First word', d: 'Keep your first word in the Treasury' },
-  { id: 'ten', n: '10 words', d: 'Keep 10 words' },
-  { id: 'hundred', n: '100 words', d: 'Keep 100 words' },
-  { id: 'streak7', n: '7-day streak', d: 'Practise 7 days in a row' },
-  { id: 'streak30', n: '30-day streak', d: 'Practise 30 days in a row' },
-  { id: 'fluent', n: 'First Fluent', d: 'Raise a card to Fluent' },
-  { id: 'silver', n: 'Silver tongue', d: 'Raise a card to Silver-Tongued' },
-  { id: 'perfect', n: 'Flawless', d: 'Answer 10 in a row correctly' },
-  { id: 'scribe', n: 'Wordsmith', d: 'Write 10 sentences of your own' }
+  { id: 'first', n: 'First word', d: 'Keep your first word in the Treasury', t: 'Common', w: 'You kept your first word in the Treasury. Every great lexicon begins with one.' },
+  { id: 'ten', n: '10 words', d: 'Keep 10 words', t: 'Common', w: 'Ten words now rest in your Treasury. A collection has begun.' },
+  { id: 'streak7', n: '7-day streak', d: 'Practise 7 days in a row', t: 'Common', w: 'Seven days in a row. A habit is taking root.' },
+  { id: 'hundred', n: '100 words', d: 'Keep 100 words', t: 'Uncommon', w: 'One hundred words in your Treasury. Your lexicon has real weight now.' },
+  { id: 'fluent', n: 'First Fluent', d: 'Raise a card to Fluent', t: 'Uncommon', w: 'Your first card has risen to Fluent, its border now edged in gold.' },
+  { id: 'scribe', n: 'Wordsmith', d: 'Write 10 sentences the Sentence Judge accepts', t: 'Uncommon', w: 'Ten sentences of your own, each judged well used. You write with the words you keep.' },
+  { id: 'streak30', n: '30-day streak', d: 'Practise 30 days in a row', t: 'Rare', w: 'Thirty days without a break. Discipline worthy of Marcus Aurelius.' },
+  { id: 'perfect', n: 'Flawless', d: 'Answer 25 in a row correctly', t: 'Rare', w: 'Twenty-five answers in a row, not one wrong. Flawless.' },
+  { id: 'spartan', n: 'Spartan', d: 'Keep 300 words', t: 'Rare', w: 'Three hundred words now stand in your Treasury, a phalanx few will ever raise.' },
+  { id: 'streak100', n: 'Centurion', d: 'Practise 100 days in a row', t: 'Rare', w: 'One hundred days in a row. The sun has risen on your practice a hundred times.' },
+  { id: 'asc25', n: 'Argentum', d: 'Win 25 Ascension Trials', t: 'Epic', w: 'Twenty-five ascensions. Twenty-five times a word rose under your hand.' },
+  { id: 'asc50', n: 'Aurum', d: 'Win 50 Ascension Trials', t: 'Epic', w: 'Fifty ascensions. Fifty times a word rose under your hand. Gold suits you.' },
+  { id: 'silver', n: 'Silver tongue', d: 'Raise a card to Silver-Tongued', t: 'Legendary', w: 'A word has reached the highest level. Eloquentia: your first Silver-Tongued card.' },
+  { id: 'asc100', n: 'Adamant', d: 'Win 100 Ascension Trials', t: 'Legendary', w: 'One hundred ascensions. Unbreakable, like the diamond the ancients called adamant.' },
+  { id: 'magna', n: 'Magna Cum Laude', d: 'Hold 5 Silver-Tongued cards', t: 'Legendary', w: 'Five words, Silver-Tongued. With great honour.' },
+  { id: 'summa', n: 'Summa Cum Laude', d: 'Hold 10 Silver-Tongued cards', t: 'Legendary', w: 'Ten words, Silver-Tongued. The highest honour, with distinction beyond measure.' },
+  { id: 'lucent', n: 'Lucent', d: 'Win 10 Ascension Trials in a row without a loss, with at least 25 words kept', t: 'The grandest', w: 'Ten trials in a row, without a single loss. The rarest honour in Lucent. Your words shine.' }
 ];
 
 /* ---------- Word Lore. k: 'fact' = recorded history; 'story' = a popular story (may not be true) ---------- */

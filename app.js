@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.7.4';
+const VERSION = '1.8.0';
 const WHATS_NEW = [
+  { v: '1.8.0', title: 'New seals, a living palate and a steadier climb', notes: ['Eight new seals to earn: Spartan (300 words), Centurion (100-day streak), Argentum, Aurum and Adamant (25, 50 and 100 ascensions), Magna and Summa Cum Laude (5 and 10 Silver-Tongued cards), and Lucent, the grandest of all.', 'Earning a seal now lights up the whole screen, wherever you are. The rarer the seal, the grander the glow.', 'Your palate chart now sits in Profile and follows the words you keep, blending your first taste test with your Treasury.', 'Ascension: one card may rise each day. A new card takes its first trial the next day, rests 7 days after each climb, and waits 3 days after a lost trial.', 'Flawless now asks for 25 correct answers in a row, and Wordsmith counts only sentences the Sentence Judge accepts.'] },
   { v: '1.7.4', title: 'Smoother updates', notes: ['Fixed the update button getting stuck on “Updating…” when two updates arrived close together. Updates now finish in a few seconds, and Lucent reloads by itself if anything is slow.'] },
   { v: '1.7.3', title: 'Card backs, reborn', notes: ['The back of every card now matches its front: the same material and engraved border, laid out like the bookplate in an old library book.', 'Meanings, origin, synonyms and your own sentences sit between ornaments, with your notes on lined paper.', 'To release a word from your Treasury, tap the small round bin at the bottom of its back.'] },
   { v: '1.7.2', title: 'The judge keeps your phone cool', notes: ['Cool mode: the Sentence Judge now thinks on a single processor core. It uses the same total effort, spread out so your phone stays cool, and less memory. Each check takes about 10 seconds.', 'Heat guard: if your phone gets warm and starts slowing itself down, the judge notices and rests for 3 minutes. A rest never counts as a mistake in a trial.'] },
@@ -302,7 +303,8 @@ function streak() {
   while (days.has(ymd(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
-const RARITY = { first: 'Common', ten: 'Common', streak7: 'Common', hundred: 'Rare', fluent: 'Rare', scribe: 'Rare', streak30: 'Epic', perfect: 'Epic', silver: 'Legendary' };
+const TIERS = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'The grandest'];
+const sealOf = id => LX.SEALS.find(x => x.id === id);
 function sealSVG(id, size) { return `<svg width="${size}" height="${size}" viewBox="0 0 200 200" aria-hidden="true">${(LX.SEAL_ART || {})[id] || ''}</svg>`; }
 const sealQ = []; let exBusy = 0, sealShowing = false;
 function award(id) {
@@ -316,27 +318,37 @@ function flushSeals() {
   sealShowing = true; setTimeout(() => { if (exBusy || !sealQ.length) { sealShowing = false; return; } showSeal(sealQ[0], true); }, 500);
 }
 function endBusy() { exBusy = Math.max(0, exBusy - 1); setTimeout(flushSeals, 300); }
+/* the seal pop-up: centre stage, glowing; the higher the prestige, the grander the light.
+   Only cheap, GPU-friendly motion (a slow rotation and fading sparkles), and nothing runs once it closes. */
 function showSeal(id, fresh) {
-  const s = LX.SEALS.find(x => x.id === id); if (!s) return;
-  const on = !!seals[id];
-  const el = document.createElement('div'); el.className = 'sealpop';
-  el.innerHTML = `<div class="sp-card${fresh ? ' fresh' : ''}${on ? '' : ' locked'}"><div class="micro" style="color:${on ? 'var(--acc)' : 'var(--muted)'}">${fresh ? 'Seal earned' : on ? 'Seal' : 'Not yet earned'} · ${RARITY[id]}</div>
-    <div class="sp-art">${sealSVG(id, 200)}</div><div class="serif" style="font-size:32px;font-weight:500;line-height:1.1">${esc(s.n)}</div>
-    <div class="muted" style="font-size:14px">${esc(s.d)}</div>${on ? `<div class="muted" style="font-size:12px">Earned ${new Date(seals[id]).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</div>` : ''}
-    <button class="btn" id="spok" style="margin-top:8px">${fresh ? 'Splendid' : 'Close'}</button></div>`;
-  const close = () => { closeTop(); };
-  el.addEventListener('click', ev => { if (ev.target === el || ev.target.id === 'spok') close(); });
+  const s = sealOf(id); if (!s) return;
+  const on = !!seals[id], ti = Math.max(0, TIERS.indexOf(s.t));
+  const el = document.createElement('div'); el.className = `sealpop t${ti}${on ? '' : ' locked'}${fresh ? ' fresh' : ''}`;
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `${s.n} seal`);
+  const sp = on ? [0, 0, 0, 10, 16, 22][ti] : 0, R = [0, 0, 0, 130, 160, 190][ti];
+  let dots = '';
+  for (let k = 0; k < sp; k++) { const a = (k * 137.5) * Math.PI / 180, r = R * (0.45 + ((k * 37) % 55) / 100), z = 2 + (k % 3); dots += `<i style="left:calc(50% + ${(Math.cos(a) * r).toFixed(0)}px);top:calc(50% + ${(Math.sin(a) * r).toFixed(0)}px);width:${z}px;height:${z}px;animation-delay:${(k % 7) * 0.4}s"></i>`; }
+  const size = [168, 172, 176, 182, 190, 204][ti];
+  el.innerHTML = `<button class="sp-x" id="spok" aria-label="Close">${ICON.close}</button>
+    <div class="sp-stage">${on ? `<div class="sp-glow"></div>${ti >= 2 ? '<div class="sp-rays"></div>' : ''}${ti >= 4 ? '<div class="sp-rays two"></div><div class="sp-ring"></div>' : ''}${ti >= 5 ? '<div class="sp-ring outer"></div>' : ''}<div class="sp-dots">${dots}</div>` : ''}
+      <div class="sp-art">${sealSVG(id, size)}</div></div>
+    <div class="sp-text"><div class="sp-tier">${fresh ? 'Seal earned' : on ? 'Seal' : 'Not yet earned'} · ${esc(s.t)}</div>
+      <div class="sp-name">${esc(s.n)}</div><div class="sp-desc">${esc(on ? s.w || s.d : s.d)}</div>
+      ${on ? `<div class="sp-date">${new Date(seals[id]).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}</div>` : ''}</div>`;
+  $('#spok', el).onclick = () => closeTop();
   pushOverlay(el, () => { if (fresh) { sealQ.shift(); sealShowing = false; flushSeals(); } });
-  if (fresh && navigator.vibrate) { try { navigator.vibrate([20, 40, 30]); } catch { } }
+  if (fresh && navigator.vibrate) { try { navigator.vibrate(ti >= 5 ? [30, 60, 30, 60, 120, 80, 220] : ti >= 3 ? [20, 40, 30, 40, 80] : [20, 40, 30]); } catch { } }
 }
 function checkSeals() {
   const n = Object.keys(treasury).length;
-  if (n >= 1) award('first'); if (n >= 10) award('ten'); if (n >= 100) award('hundred');
-  const st = streak(); if (st >= 7) award('streak7'); if (st >= 30) award('streak30');
-  const lv = Object.values(treasury).map(r => lvOf(r));
-  if (lv.some(l => l >= 3)) award('fluent'); if (lv.some(l => l >= 4)) award('silver');
-  if ((stats.best || 0) >= 10) award('perfect');
-  const sents = Object.values(treasury).reduce((s, r) => s + (r.sent ? r.sent.length : 0), 0); if (sents >= 10) award('scribe');
+  if (n >= 1) award('first'); if (n >= 10) award('ten'); if (n >= 100) award('hundred'); if (n >= 300) award('spartan');
+  const st = streak(); if (st >= 7) award('streak7'); if (st >= 30) award('streak30'); if (st >= 100) award('streak100');
+  const lv = Object.values(treasury).map(r => lvOf(r)), silv = lv.filter(l => l >= 4).length;
+  if (lv.some(l => l >= 3)) award('fluent'); if (silv >= 1) award('silver'); if (silv >= 5) award('magna'); if (silv >= 10) award('summa');
+  if ((stats.best || 0) >= 25) award('perfect');
+  if ((stats.judged || 0) >= 10) award('scribe');
+  const up = stats.ascended || 0; if (up >= 25) award('asc25'); if (up >= 50) award('asc50'); if (up >= 100) award('asc100');
+  if ((stats.trialRun || 0) >= 10 && n >= 25) award('lucent');
 }
 
 /* ---------- treasury ---------- */
@@ -945,6 +957,7 @@ function ascSectionHTML() {
   const st = ws.map(w => ({ w, a: ascState(treasury[w]) })).filter(x => !x.a.max);
   const ready = st.filter(x => x.a.ready).sort((a, b) => b.a.lv - a.a.lv || treasury[a.w].a - treasury[b.w].a);
   if (!st.length) return `<div class="micro" style="margin:28px 0 12px">Ascension</div><div class="ascnone serif it">Every card in your Treasury is Silver-Tongued. Remarkable.</div>`;
+  if (!ready.length && stats.ascDay === ymd()) return `<div class="micro" style="margin:28px 0 12px">Ascension</div><div class="ascnone"><span class="serif it">Today’s ascension is done.</span><span class="muted">One card may rise each day. The next trial opens tomorrow.</span></div>`;
   if (!ready.length) { const n = st.sort((a, b) => a.a.at - b.a.at)[0]; return `<div class="micro" style="margin:28px 0 12px">Ascension</div><div class="ascnone"><span class="serif it">No card is ready for its trial yet.</span><span class="muted">Next: “${esc(n.w)}”, ${waitText(n.a.at)}.</span></div>`; }
   return `<div class="micro" style="margin:28px 0 12px">Ready to ascend · ${ready.length}</div><div class="ascrow">${ready.slice(0, 8).map(x => `<button class="ascgo lc${x.a.lv}" data-w="${esc(x.w)}"><span class="ag-lv">${LX.CARD_LEVELS[x.a.lv].n} → ${x.a.to}</span><span class="ag-w">${esc(x.w)}</span><span class="ag-n">${x.a.n} questions ${ICON.arrow}</span></button>`).join('')}</div>`;
 }
@@ -1089,7 +1102,7 @@ async function startEx(id) {
           catch (err) { delete body.dataset.lock; sb.disabled = false; sb.textContent = 'Submit'; toast('The judge could not read that just now. Try again.'); return; }
           delete body.dataset.lock;
           if (r.ok) {
-            keep(v); if (!counted.done) { recordAnswer(q.w, true); right++; counted.done = true; }
+            keep(v); stats.judged = (stats.judged || 0) + 1; save.stats(); checkSeals(); if (!counted.done) { recordAnswer(q.w, true); right++; counted.done = true; }
             body.innerHTML = head() + `<div class="stack" style="gap:14px;margin-top:26px"><div class="micro" style="color:#2F6B4F">Well used</div><div class="qword" style="text-align:left;font-size:42px">${esc(q.w)}</div><div class="serif it" style="font-size:20px;line-height:1.35">“${esc(v)}”</div>${reveal()}<p class="muted" style="font-size:13px;margin:0">Saved to its card.</p><button class="btn" id="nx">${qi + 1 < qs.length ? 'Next word' : 'Finish'}</button></div>`;
             $('#nx', body).onclick = () => { qi++; qi < qs.length ? ask() : finish(); };
           } else {
@@ -1219,8 +1232,10 @@ function judgeSetup(onDone) {
 }
 
 /* ---------- Ascension Trial: the only way a card rises ---------- */
-const REST_DAYS = [1, 2, 3, 5];   // days a card rests at its level before the next trial
-const FAIL_DAYS = [1, 1, 2, 3];   // wait after a lost trial
+const REST_DAYS = 7;   // after a card ascends, it rests 7 days before its next trial
+const FAIL_DAYS = [3, 3, 3, 3];   // wait after a lost trial
+const dayStart = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const nextDay = t => { const d = new Date(dayStart(t)); d.setDate(d.getDate() + 1); return d.getTime(); };
 const TRIAL_PLAN = [
   ['meaning', 'reverse', 'synonym'],
   ['meaning', 'synonym', 'blank', 'reverse'],
@@ -1230,9 +1245,11 @@ const TRIAL_PLAN = [
 const WRITE_N = 3;   // sentences the trial asks for
 function ascState(rec) {
   const lv = lvOf(rec); if (!rec || lv >= 4) return { max: true, lv };
-  const rest = (rec.up || rec.a || 0) + REST_DAYS[lv] * 864e5, fail = rec.fail ? rec.fail + FAIL_DAYS[lv] * 864e5 : 0, at = Math.max(rest, fail);
+  // a new card's first trial opens the next day; after each climb it rests 7 days; only one card may ascend per day
+  const rest = lv === 0 ? nextDay(rec.a || 0) : (rec.up || rec.a || 0) + REST_DAYS * 864e5, fail = rec.fail ? rec.fail + FAIL_DAYS[lv] * 864e5 : 0;
+  const daily = stats.ascDay === ymd() ? nextDay(Date.now()) : 0, at = Math.max(rest, fail, daily);
   const plan = TRIAL_PLAN[lv], writes = plan.includes('write');
-  return { lv, at, ready: Date.now() >= at, failed: fail > rest && Date.now() < fail, n: plan.length - (writes ? 1 : 0), writes, to: LX.CARD_LEVELS[lv + 1].n };
+  return { lv, at, ready: Date.now() >= at, failed: fail > rest && fail >= daily && Date.now() < fail, daily: daily && daily >= rest && daily >= fail && Date.now() < daily, n: plan.length - (writes ? 1 : 0), writes, to: LX.CARD_LEVELS[lv + 1].n };
 }
 function waitText(at) {
   const ms = at - Date.now(); if (ms <= 0) return 'now';
@@ -1243,6 +1260,7 @@ function waitText(at) {
 function ascLine(as) {
   if (as.max) return 'The highest honour. This card is Silver-Tongued.';
   if (as.ready) return `Ready to rise to <b>${as.to}</b>: a trial of ${as.n} questions${as.writes ? ' and ' + WRITE_N + ' sentences of your own' : ''}. One mistake ends it.`;
+  if (as.daily) return `Today’s ascension is done: one card may rise each day. This one may try ${waitText(as.at)}.`;
   return as.failed ? `The last trial was lost. It may try again ${waitText(as.at)}.` : `Resting before its trial to <b>${as.to}</b>. Ready ${waitText(as.at)}.`;
 }
 const ROOT_LANGS = ['Ancient Greek', 'Late Latin', 'Medieval Latin', 'New Latin', 'Latin', 'Greek', 'Old French', 'Anglo-Norman', 'Middle French', 'French', 'Old English', 'Middle English', 'Old Norse', 'Middle Dutch', 'Dutch', 'Old High German', 'German', 'Italian', 'Spanish', 'Portuguese', 'Arabic', 'Persian', 'Sanskrit', 'Hindi', 'Hebrew', 'Japanese', 'Chinese', 'Turkish', 'Russian', 'Malay', 'Nahuatl', 'Old Irish', 'Scottish Gaelic', 'Yiddish'];
@@ -1314,7 +1332,7 @@ async function ascendTrial(w, onDone) {
   const head = () => `<div class="tsteps">${qs.map((_, k) => `<i class="${k < qi ? 'done' : k === qi ? 'now' : ''}"></i>`).join('')}</div><div class="micro" style="text-align:center;margin-top:8px">Question ${qi + 1} of ${qs.length}</div>`;
   const lose = () => {
     rec.fail = Date.now(); save.treasury();
-    stats.trials = (stats.trials || 0) + 1; save.stats();
+    stats.trials = (stats.trials || 0) + 1; stats.trialRun = 0; save.stats();
     const s2 = ascState(rec);
     body.innerHTML = `<div class="stack" style="align-items:center;text-align:center;gap:14px;margin-top:6px"><div class="micro">The trial is lost</div>
       <div class="tcard lost">${cardHTML(w, e, rec, ch)}</div>
@@ -1325,7 +1343,7 @@ async function ascendTrial(w, onDone) {
   };
   const win = async () => {
     rec.lv = lv + 1; rec.up = Date.now(); delete rec.fail; save.treasury();
-    stats.trials = (stats.trials || 0) + 1; stats.ascended = (stats.ascended || 0) + 1;
+    stats.trials = (stats.trials || 0) + 1; stats.ascended = (stats.ascended || 0) + 1; stats.trialRun = (stats.trialRun || 0) + 1; stats.ascDay = ymd();
     const d = ymd(); if (!stats.days.includes(d)) { stats.days.push(d); stats.days = stats.days.slice(-400); }
     save.stats(); checkSeals();
     body.innerHTML = `<div class="stack" style="align-items:center;text-align:center;gap:14px;margin-top:6px"><div class="micro" style="color:var(--acc)">Ascended</div>
@@ -1361,7 +1379,7 @@ async function ascendTrial(w, onDone) {
           catch (err) { delete body.dataset.lock; sb.disabled = false; sb.textContent = 'Submit'; toast('The judge could not read that just now. Try again.'); return; }
           delete body.dataset.lock;
           if (r.ok) {
-            written.push(v); rec.sent = (rec.sent || []).concat(v).slice(-10); save.treasury();
+            written.push(v); rec.sent = (rec.sent || []).concat(v).slice(-10); save.treasury(); stats.judged = (stats.judged || 0) + 1; save.stats();
             k++; retried = false;
             if (k >= WRITE_N) { next(); return; }
             page(''); toast('Well used.');
@@ -1519,7 +1537,9 @@ function renderProfile() {
     <section class="sec"><div class="micro">Your collection</div>
       <div class="collbar">${tw.length ? counts.map((n, i) => n ? `<span style="flex-grow:${n};background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></span>` : '').join('') : ''}</div>
       <div class="legend">${LX.CARD_LEVELS.map((l, i) => `<div><i style="background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></i><span>${l.n}</span><b>${counts[i]}</b></div>`).join('')}</div></section>
-    ${profile.palate ? `<section class="sec"><div class="micro">Your palate</div><button class="setrow" id="pal" style="border-top:1px solid var(--line)"><span class="serif" style="font-size:18px">${profile.palate.title}</span><span>${ICON.next.replace('<svg', '<svg width="16" height="16"')}</span></button></section>` : ''}
+    ${profile.palate ? `<section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Your palate</div><button class="linkbtn" id="pal" style="font-size:13px">${esc(profile.palate.title)}</button></div>
+      <div class="palwrap" id="palchart">${radarSVG(palCache ? palCache.chartBlend || profile.palate.chart : profile.palate.chart, true)}</div>
+      <p class="muted palnote" id="palnote">Reading your Treasury…</p></section>` : ''}
     <section class="sec"><div class="micro">Seals · ${Object.keys(seals).length} of ${LX.SEALS.length}</div><div class="seals">${LX.SEALS.map(s => `<button class="seal ${seals[s.id] ? 'on' : 'off'}" data-s="${s.id}" aria-label="${esc(s.n)}${seals[s.id] ? '' : ', not yet earned'}">${sealSVG(s.id, 78)}<span>${esc(s.n)}</span></button>`).join('')}</div></section>
     <section class="sec"><div class="micro">Settings</div>
       <div class="setrow"><span>Theme</span><div class="seg" id="theme">${['day', 'night', 'auto'].map(t => `<button data-t="${t}" class="${settings.theme === t ? 'on' : ''}">${t === 'day' ? 'Day' : t === 'night' ? 'Night' : 'Auto'}</button>`).join('')}</div></div>
@@ -1534,6 +1554,13 @@ function renderProfile() {
   $('#edit').onclick = editProfile;
   $$('.seal').forEach(b => b.onclick = () => showSeal(b.dataset.s, false));
   const pal = $('#pal'); if (pal) pal.onclick = () => showPalate(profile.palate, false);
+  if (profile.palate) palateNow().then(p => {
+    if (tab !== 'profile') return; palCache.chartBlend = p.chart;
+    const pc = $('#palchart'), pn = $('#palnote'); if (pc) pc.innerHTML = radarSVG(p.chart, true);
+    if (pn) pn.textContent = !p.counted ? 'Shaped by your taste test. As you keep words, the chart follows your Treasury.'
+      : p.wgt < 1 ? `Your taste test, blended with ${p.counted} word${p.counted > 1 ? 's' : ''} from your Treasury. Leaning ${p.lean[0]} and ${p.lean[1]}.`
+      : `Drawn from the ${p.counted} words in your Treasury. Leaning ${p.lean[0]} and ${p.lean[1]}.`;
+  }).catch(() => { });
   $$('#theme button').forEach(b => b.onclick = () => { settings.theme = b.dataset.t; save.settings(); applyTheme(); renderProfile(); });
   $('#jdg').onclick = () => judgeSetup(() => { if (tab === 'profile') renderProfile(); });
   $('#offl').onclick = () => { const o = store.get('offline3', {}); if (o.total && o.done >= o.total) toast('The whole dictionary is saved on this phone.'); else { startOfflineDownload(true); toast('Saving the dictionary for offline use…'); } };
@@ -1704,7 +1731,8 @@ function onboarding(only) {
   };
   if (only === 'calib') calib(); else if (only === 'palate') instinct(0); else nameStep();
 }
-function radarSVG(chart) {
+function radarSVG(chart, light) {
+  if (light) return radarLight(chart);
   const axes = [['T', 'LITERARY'], ['P', 'PHILOSOPHY'], ['L', 'LEGAL'], ['C', 'COMMERCIAL'], ['O', 'ORNATE']];
   const cx = 171, cy = 124, R = 84, pt = (i, r) => { const a = (-90 + 72 * i) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
   const poly = k => axes.map((_, i) => pt(i, R * k).map(v => v.toFixed(1)).join(',')).join(' ');
@@ -1715,6 +1743,50 @@ function radarSVG(chart) {
   axes.forEach(([k], i) => { const [x, y] = pt(i, R * chart[k]); s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#F1EBE0"/>`; });
   axes.forEach(([, n], i) => { const [x, y] = pt(i, R + 16); const anc = Math.abs(x - cx) < 5 ? 'middle' : x > cx ? 'start' : 'end'; s += `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anc}" font-family="Inter, sans-serif" font-size="10" letter-spacing="1.4" fill="#9C9487">${n}</text>`; });
   return s + '</svg>';
+}
+/* the same five-pointed chart, drawn in the page's own colours for the Profile tab */
+function radarLight(chart) {
+  const axes = [['T', 'LITERARY'], ['P', 'PHILOSOPHY'], ['L', 'LEGAL'], ['C', 'COMMERCIAL'], ['O', 'ORNATE']];
+  const cx = 171, cy = 122, R = 82, pt = (i, r) => { const a = (-90 + 72 * i) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const poly = k => axes.map((_, i) => pt(i, R * k).map(v => v.toFixed(1)).join(',')).join(' ');
+  let s = `<svg class="palsvg" width="342" height="236" viewBox="0 0 342 236" role="img" aria-label="Your lexical palate" style="max-width:100%">`;
+  [1 / 3, 2 / 3, 1].forEach(k => s += `<polygon points="${poly(k)}" fill="none" style="stroke:var(--line2)"/>`);
+  axes.forEach((_, i) => { const [x, y] = pt(i, R); s += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:var(--line2)"/>`; });
+  s += `<polygon class="palpoly" points="${axes.map(([k], i) => pt(i, R * Math.max(.08, chart[k] || 0)).map(v => v.toFixed(1)).join(',')).join(' ')}" style="fill:color-mix(in srgb,var(--acc) 16%,transparent);stroke:var(--acc)" stroke-width="1.6" stroke-linejoin="round"/>`;
+  axes.forEach(([k], i) => { const [x, y] = pt(i, R * Math.max(.08, chart[k] || 0)); s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" style="fill:var(--acc)"/>`; });
+  axes.forEach(([, n], i) => { const [x, y] = pt(i, R + 16); const anc = Math.abs(x - cx) < 5 ? 'middle' : x > cx ? 'start' : 'end'; s += `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anc}" font-family="Inter, sans-serif" font-size="10" letter-spacing="1.4" style="fill:var(--muted)">${n}</text>`; });
+  return s + '</svg>';
+}
+const PAL_AXES = { T: 'Literary', P: 'Philosophy', L: 'Legal', C: 'Commercial', O: 'Ornate' };
+const EM_AXIS = { coin: 'C', gavel: 'L', owl: 'P', lamp: 'P', scale: 'P', key: 'P', chain: 'P', column: 'P', anchor: 'P', lyre: 'T', quill: 'T', scroll: 'T', mask: 'T', moon: 'T', tear: 'T', heart: 'T', serpent: 'T', dove: 'T', jester: 'T', sun: 'T', gem: 'O', crown: 'O', mirror: 'O', goblet: 'O', star: 'O' };
+const CAT_AXIS = { Literary: 'T', Business: 'C', Legal: 'L', Ornate: 'O', Whimsical: 'O' };
+let catMap = null, palCache = null;
+/* each kept word leans toward one or more of the five areas; the Treasury's mix becomes the chart */
+async function treasuryPalate() {
+  const ws = Object.keys(treasury), key = ws.length + ':' + ws.reduce((m, w) => Math.max(m, treasury[w].a || 0), 0);
+  if (palCache && palCache.key === key) return palCache;
+  if (!catMap) { catMap = {}; (LX.CATS || []).forEach(c => { const ax = CAT_AXIS[c.n]; if (ax) c.w.split(' ').forEach(w => { (catMap[w] = catMap[w] || []).push(ax); }); }); }
+  const tot = { T: 0, P: 0, L: 0, C: 0, O: 0 }; let counted = 0;
+  for (const w of ws) {
+    const e = await Dict.get(w); const v = { T: 0, P: 0, L: 0, C: 0, O: 0 };
+    String((e && e.g) || '').split('').forEach(ch => { if (ch in v) v[ch] += 1; });
+    (catMap[w] || []).forEach(ax => v[ax] += 1);
+    const em = emblemOf(w, e, null), ea = EM_AXIS[em && em.id]; if (ea) v[ea] += .6;
+    if (e && e.t >= 50) v.O += .6; if (w.length >= 12) v.O += .3;
+    const sum = v.T + v.P + v.L + v.C + v.O; if (!sum) continue;
+    counted++; for (const k in v) tot[k] += v[k] / sum;
+  }
+  const mx = Math.max(...Object.values(tot)) || 1, chart = {};
+  for (const k in tot) chart[k] = tot[k] / mx;
+  return palCache = { key, chart, counted };
+}
+/* blend the taste test with the Treasury: the Treasury takes over completely by about 30 words */
+async function palateNow() {
+  const quiz = (profile && profile.palate && profile.palate.chart) || { T: .5, P: .5, L: .5, C: .5, O: .5 };
+  const tp = await treasuryPalate(), wgt = Math.min(1, tp.counted / 30), chart = {};
+  for (const k of ['T', 'P', 'L', 'C', 'O']) chart[k] = (1 - wgt) * (quiz[k] || 0) + wgt * (tp.chart[k] || 0);
+  const top = Object.entries(chart).sort((a, b) => b[1] - a[1]);
+  return { chart, counted: tp.counted, wgt, lean: [PAL_AXES[top[0][0]], PAL_AXES[top[1][0]]] };
 }
 function showPalate(p, inFlow, host, next) {
   const words = LX.PALATE.instinct;
