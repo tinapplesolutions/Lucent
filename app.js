@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.8.1';
+const VERSION = '1.8.2';
 const WHATS_NEW = [
+  { v: '1.8.2', title: 'A palate that grows with you', notes: ['Your palate’s name now follows your Treasury, just like the chart. Where your words come from sets the first half; the strongest corner of your chart sets the finish.', 'When it changes, a small note appears in Profile. Tap your palate to see who you once were.'] },
   { v: '1.8.1', title: 'Small polish', notes: ['The Discover tab is now called Dictionary on the bottom bar. The page itself is still Discover.', 'Your palate name in Profile shows its italics properly.'] },
   { v: '1.8.0', title: 'New seals, a living palate and a steadier climb', notes: ['Eight new seals to earn: Spartan (300 words), Centurion (100-day streak), Argentum, Aurum and Adamant (25, 50 and 100 ascensions), Magna and Summa Cum Laude (5 and 10 Silver-Tongued cards), and Lucent, the grandest of all.', 'Earning a seal now lights up the whole screen, wherever you are. The rarer the seal, the grander the glow.', 'Your palate chart now sits in Profile and follows the words you keep, blending your first taste test with your Treasury.', 'Ascension: one card may rise each day. A new card takes its first trial the next day, rests 7 days after each climb, and waits 3 days after a lost trial.', 'Flawless now asks for 25 correct answers in a row, and Wordsmith counts only sentences the Sentence Judge accepts.'] },
   { v: '1.7.4', title: 'Smoother updates', notes: ['Fixed the update button getting stuck on “Updating…” when two updates arrived close together. Updates now finish in a few seconds, and Lucent reloads by itself if anything is slow.'] },
@@ -1538,7 +1539,8 @@ function renderProfile() {
     <section class="sec"><div class="micro">Your collection</div>
       <div class="collbar">${tw.length ? counts.map((n, i) => n ? `<span style="flex-grow:${n};background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></span>` : '').join('') : ''}</div>
       <div class="legend">${LX.CARD_LEVELS.map((l, i) => `<div><i style="background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></i><span>${l.n}</span><b>${counts[i]}</b></div>`).join('')}</div></section>
-    ${profile.palate ? `<section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Your palate</div><button class="linkbtn" id="pal" style="font-size:13px">${esc(profile.palate.title).replace(/&lt;(\/?)i&gt;/g, '<$1i>')}</button></div>
+    ${profile.palate ? `<section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Your palate</div><button class="linkbtn" id="pal" style="font-size:13px">${palTitle(profile.palate)}</button></div>
+      <p class="palshift${profile.palate.shifted && Date.now() - profile.palate.shifted < 3 * 864e5 ? '' : ' hidden'}" id="palshift"></p>
       <div class="palwrap" id="palchart">${radarSVG(palCache ? palCache.chartBlend || profile.palate.chart : profile.palate.chart, true)}</div>
       <p class="muted palnote" id="palnote">Reading your Treasury…</p></section>` : ''}
     <section class="sec"><div class="micro">Seals · ${Object.keys(seals).length} of ${LX.SEALS.length}</div><div class="seals">${LX.SEALS.map(s => `<button class="seal ${seals[s.id] ? 'on' : 'off'}" data-s="${s.id}" aria-label="${esc(s.n)}${seals[s.id] ? '' : ', not yet earned'}">${sealSVG(s.id, 78)}<span>${esc(s.n)}</span></button>`).join('')}</div></section>
@@ -1554,9 +1556,15 @@ function renderProfile() {
       <input type="file" id="rsf" accept="application/json,.json" class="hidden"></section>`;
   $('#edit').onclick = editProfile;
   $$('.seal').forEach(b => b.onclick = () => showSeal(b.dataset.s, false));
-  const pal = $('#pal'); if (pal) pal.onclick = () => showPalate(profile.palate, false);
+  let palLive = null;
+  const pal = $('#pal'); if (pal) pal.onclick = () => { const P = profile.palate; if (P.shifted) { P.shifted = 0; save.profile(); const s = $('#palshift'); if (s) s.classList.add('hidden'); }
+    showPalate(palLive ? Object.assign({}, P, palLive) : P, false); };
   if (profile.palate) palateNow().then(p => {
-    if (tab !== 'profile') return; palCache.chartBlend = p.chart;
+    if (tab !== 'profile') return; palCache.chartBlend = p.chart; palLive = p;
+    if (pal) pal.innerHTML = palTitle(profile.palate);
+    const ps = $('#palshift'), P = profile.palate;
+    if (ps) { const on = P.shifted && Date.now() - P.shifted < 3 * 864e5 && P.past && P.past[0];
+      ps.classList.toggle('hidden', !on); if (on) ps.innerHTML = `Your palate has shifted. Once ${palTitle({ title: P.past[0].title })}`; }
     const pc = $('#palchart'), pn = $('#palnote'); if (pc) pc.innerHTML = radarSVG(p.chart, true);
     if (pn) pn.textContent = !p.counted ? 'Shaped by your taste test. As you keep words, the chart follows your Treasury.'
       : p.wgt < 1 ? `Your taste test, blended with ${p.counted} word${p.counted > 1 ? 's' : ''} from your Treasury. Leaning ${p.lean[0]} and ${p.lean[1]}.`
@@ -1758,6 +1766,9 @@ function radarLight(chart) {
   axes.forEach(([, n], i) => { const [x, y] = pt(i, R + 16); const anc = Math.abs(x - cx) < 5 ? 'middle' : x > cx ? 'start' : 'end'; s += `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="${anc}" font-family="Inter, sans-serif" font-size="10" letter-spacing="1.4" style="fill:var(--muted)">${n}</text>`; });
   return s + '</svg>';
 }
+const ROOT_FAM = { Latin: 'latin', 'Late Latin': 'latin', 'Medieval Latin': 'latin', 'New Latin': 'latin', Greek: 'greek', 'Ancient Greek': 'greek',
+  French: 'french', 'Old French': 'french', 'Anglo-Norman': 'french', 'Middle French': 'french',
+  'Old English': 'germanic', 'Middle English': 'germanic', 'Old Norse': 'germanic', 'Middle Dutch': 'germanic', Dutch: 'germanic', 'Old High German': 'germanic', German: 'germanic' };
 const PAL_AXES = { T: 'Literary', P: 'Philosophy', L: 'Legal', C: 'Commercial', O: 'Ornate' };
 const EM_AXIS = { coin: 'C', gavel: 'L', owl: 'P', lamp: 'P', scale: 'P', key: 'P', chain: 'P', column: 'P', anchor: 'P', lyre: 'T', quill: 'T', scroll: 'T', mask: 'T', moon: 'T', tear: 'T', heart: 'T', serpent: 'T', dove: 'T', jester: 'T', sun: 'T', gem: 'O', crown: 'O', mirror: 'O', goblet: 'O', star: 'O' };
 const CAT_AXIS = { Literary: 'T', Business: 'C', Legal: 'L', Ornate: 'O', Whimsical: 'O' };
@@ -1767,9 +1778,10 @@ async function treasuryPalate() {
   const ws = Object.keys(treasury), key = ws.length + ':' + ws.reduce((m, w) => Math.max(m, treasury[w].a || 0), 0);
   if (palCache && palCache.key === key) return palCache;
   if (!catMap) { catMap = {}; (LX.CATS || []).forEach(c => { const ax = CAT_AXIS[c.n]; if (ax) c.w.split(' ').forEach(w => { (catMap[w] = catMap[w] || []).push(ax); }); }); }
-  const tot = { T: 0, P: 0, L: 0, C: 0, O: 0 }; let counted = 0;
+  const tot = { T: 0, P: 0, L: 0, C: 0, O: 0 }, roots = { latin: 0, greek: 0, french: 0, germanic: 0, other: 0 }; let counted = 0, rooted = 0;
   for (const w of ws) {
     const e = await Dict.get(w); const v = { T: 0, P: 0, L: 0, C: 0, O: 0 };
+    const rl = rootLang(e); if (rl) { roots[ROOT_FAM[rl.ans] || 'other']++; rooted++; }
     String((e && e.g) || '').split('').forEach(ch => { if (ch in v) v[ch] += 1; });
     (catMap[w] || []).forEach(ax => v[ax] += 1);
     const em = emblemOf(w, e, null), ea = EM_AXIS[em && em.id]; if (ea) v[ea] += .6;
@@ -1779,7 +1791,7 @@ async function treasuryPalate() {
   }
   const mx = Math.max(...Object.values(tot)) || 1, chart = {};
   for (const k in tot) chart[k] = tot[k] / mx;
-  return palCache = { key, chart, counted };
+  return palCache = { key, chart, counted, roots, rooted };
 }
 /* blend the taste test with the Treasury: the Treasury takes over completely by about 30 words */
 async function palateNow() {
@@ -1787,14 +1799,35 @@ async function palateNow() {
   const tp = await treasuryPalate(), wgt = Math.min(1, tp.counted / 30), chart = {};
   for (const k of ['T', 'P', 'L', 'C', 'O']) chart[k] = (1 - wgt) * (quiz[k] || 0) + wgt * (tp.chart[k] || 0);
   const top = Object.entries(chart).sort((a, b) => b[1] - a[1]);
-  return { chart, counted: tp.counted, wgt, lean: [PAL_AXES[top[0][0]], PAL_AXES[top[1][0]]] };
+  const P = profile.palate, cur = P.now || { top: P.top, root: P.root, second: P.second };
+  // the finish: the strongest corner, but the current one holds unless clearly beaten
+  let fin = top[0][0]; if (cur.top && chart[cur.top] != null && chart[fin] - chart[cur.top] < 0.08) fin = cur.top;
+  const second = top.map(x => x[0]).find(k => k !== fin);
+  // the root: where most kept words come from, blended with the taste test the same way
+  const rs = {}; for (const k of ['latin', 'greek', 'french', 'germanic']) rs[k] = (1 - wgt) * (P.root === k ? 1 : 0) + wgt * (tp.rooted ? tp.roots[k] / tp.rooted : 0);
+  const rTop = Object.entries(rs).sort((a, b) => b[1] - a[1]);
+  let root = rTop[0][1] >= 0.4 ? rTop[0][0] : 'mixed';
+  if (cur.root && root !== cur.root && (cur.root === 'mixed' ? rTop[0][1] < 0.46 : (rs[cur.root] || 0) > rTop[0][1] - 0.08 && rs[cur.root] >= 0.34)) root = cur.root;
+  const title = `${LX.ROOT_PHRASE[root]}, <i>${LX.FINISH[fin][0]}</i>`;
+  if (!P.now) P.now = { title: P.title, top: P.top, root: P.root, second: P.second };
+  if (title !== P.now.title) {
+    (P.past = P.past || []).unshift({ title: P.now.title, until: Date.now() }); P.past = P.past.slice(0, 5);
+    P.shifted = Date.now();
+  }
+  P.now = { title, top: fin, root, second };
+  save.profile();
+  const traits = [...new Set([LX.TRAITS[fin], LX.TRAITS[second], LX.TRAITS[root] || 'Well-travelled'])];
+  const note = `You favour words ${LX.FINISH[fin][1]}, with a taste for the ${({ L: 'exacting', P: 'reflective', T: 'expressive', C: 'practical', O: 'grand' })[second]}.`;
+  return { chart, counted: tp.counted, wgt, title, traits, note, past: P.past || [], lean: [PAL_AXES[top[0][0]], PAL_AXES[top[1][0]]] };
 }
+const palTitle = p => esc((p.now && p.now.title) || p.title).replace(/&lt;(\/?)i&gt;/g, '<$1i>');
 function showPalate(p, inFlow, host, next) {
   const words = LX.PALATE.instinct;
   const inner = `<section class="stack" style="gap:10px"><div class="micro">YOUR LEXICAL PALATE</div><h1 style="font-size:36px">${p.title}</h1></section>
     <div style="display:flex;justify-content:center">${radarSVG(p.chart)}</div>
     <section class="stack" style="gap:14px"><div class="serif" style="font-size:18px;line-height:1.4;color:#D9D3C7">${esc(p.note)}</div>
       <div class="chips">${p.traits.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+      ${(p.past || []).length ? `<div class="palpast">${p.past.map(x => `<div>Once ${esc(x.title).replace(/&lt;(\/?)i&gt;/g, '<$1i>')}<span>until ${new Date(x.until).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span></div>`).join('')}</div>` : ''}
       <div style="border-top:1px solid #2A2622;padding-top:12px;font-size:13px;color:#9C9487" id="mean"><i class="serif" style="font-size:17px;color:#F1EBE0">${esc(words[0].w)}</i> — ${esc(words[0].m)}.<button style="display:block;margin-top:4px;color:#C9CED3;font-size:13px" id="all">See all ${words.length} meanings</button></div></section>
     ${inFlow ? '<button class="btn" id="pgo">' + (next ? 'Calibrate my level' : 'Done') + '</button>' : ''}`;
   if (inFlow && host) {
