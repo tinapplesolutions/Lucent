@@ -241,3 +241,115 @@ LX.LORE = [
   ['sophisticated', 'Greek', 'fact', 'Sophisticated first meant “adulterated” or “corrupted” — like a watered-down wine — from the sophists, teachers accused of clever, misleading arguments. Only in the 1900s did it become a compliment.', ''],
   ['malaria', 'Italy · 1700s', 'fact', 'Mal’aria is Italian for “bad air.” People believed the fever rose from the foul air of marshes; the real culprit, the mosquito, was not identified until 1897.', '']
 ];
+
+/* The Arena: ten titles per ground, earned 100 points at a time */
+LX.ARENA_TITLES = {
+ "All categories": [
+  "Hedge Wizard of Words",
+  "Apprentice Spellbinder",
+  "Conjurer of Clauses",
+  "Thesaurus Rex",
+  "Vocabularian Warlock",
+  "Lexicomancer",
+  "Sorcerer Supreme of Syntax",
+  "Archmage of Articulation",
+  "Grand Enchanter of the English Tongue",
+  "The Silver-Tongued Sorcerer"
+ ],
+ "Literary": [
+  "Margin Scribbler",
+  "Dog-Ear Delinquent",
+  "Bookmark Bandit",
+  "Plot-Twist Prophet",
+  "Purveyor of Purple Prose",
+  "Metaphor Magnate",
+  "Keeper of the Unreliable Narrator",
+  "Duke of the Denouement",
+  "Laureate of the Lamplight",
+  "The Unputdownable"
+ ],
+ "Business": [
+  "Synergy Survivor",
+  "Intern of Incentives",
+  "Spreadsheet Whisperer",
+  "Quarterly Report Romantic",
+  "Merchant of Memos",
+  "Viscount of Venture",
+  "Margin Maestro",
+  "Baron of Bottom Lines",
+  "Tycoon of Terms",
+  "Chairman of the Wordroom"
+ ],
+ "Legal": [
+  "Loophole Hunter",
+  "Connoisseur of Hearsay",
+  "Reader of the Fine Print (All of It)",
+  "Objection Sustainer",
+  "Barrister of Banter",
+  "Counsel for the Defence of Words",
+  "Notary of Nuance",
+  "Magistrate of the Mot Juste",
+  "His Honour of Heretofore",
+  "Lord Chief Justice of the Lexicon"
+ ],
+ "Medical": [
+  "Bedside Vocabularist",
+  "Prescription Decoder",
+  "Hypochondriac’s Hero",
+  "Resident of Rhetoric",
+  "Surgeon of Syllables",
+  "Doctor of Diction (Honorary)",
+  "Chief Resident of Big Words",
+  "Specialist in Sesquipedalian Symptoms",
+  "Consultant of the Clinical Tongue",
+  "The Physician of Phrases"
+ ],
+ "Science": [
+  "Lab-Coat Lexicographer",
+  "Beaker Botherer",
+  "Haver of Hypotheses",
+  "Peer-Reviewed Talker",
+  "Professor of Particles",
+  "Quantum Quipster",
+  "Fellow of the Royal Society of Words",
+  "Theorist of Everything Said",
+  "Laureate of the Laboratory",
+  "Nobel-Adjacent Genius"
+ ],
+ "Everyday": [
+  "Small-Talk Samurai",
+  "Grocery-List Laureate",
+  "Commute Conversationalist",
+  "Elevator Pitch Perfect",
+  "Breakfast-Table Philosopher",
+  "Neighbourhood Wordsmith",
+  "Barbershop Orator",
+  "Sage of the Sari-Sari Store",
+  "Master of Mundane Magnificence",
+  "The People’s Poet"
+ ],
+ "Ornate": [
+  "Baroque and Proud",
+  "Fond of Flourishes",
+  "Apprentice Grandiloquist",
+  "Curator of Curlicues",
+  "The Gilded Tongue",
+  "Sesquipedalian Sovereign",
+  "Marquis of Magniloquence",
+  "Archduke of Ornamentation",
+  "Lord High Grandiloquent",
+  "His Most Rococo Excellency"
+ ],
+ "Whimsical": [
+  "Gigglemonger",
+  "Purveyor of Piffle",
+  "Squire of Shenanigans",
+  "Professor of Poppycock",
+  "Baron von Bamboozle",
+  "Knight of the Kerfuffle",
+  "Earl of Hullabaloo",
+  "Archduke of Balderdash",
+  "Supreme Codswallop Commissioner",
+  "Grand Vizier of Gobbledygook"
+ ]
+};

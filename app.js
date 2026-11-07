@@ -1,7 +1,8 @@
 /* Lucent — an offline dictionary and lexicon builder. By Tin Apple. */
 'use strict';
-const VERSION = '1.8.2';
+const VERSION = '1.9.0';
 const WHATS_NEW = [
+  { v: '1.9.0', title: 'The Arena', notes: ['Lexis now has two doors. The Study is where you practise the words you keep.', 'The Arena is new: ten words from the whole dictionary, ten seconds each, on any of nine grounds. Every right answer is a point; a perfect round adds ten, a single slip five.', 'Every 100 points earns a title, 90 in all, from Gigglemonger to The Silver-Tongued Sorcerer. Each level brings rarer words and craftier wrong answers.', 'Wear your favourite title under your name in Profile, or let Lucent show your best.'] },
   { v: '1.8.2', title: 'A palate that grows with you', notes: ['Your palate’s name now follows your Treasury, just like the chart. Where your words come from sets the first half; the strongest corner of your chart sets the finish.', 'When it changes, a small note appears in Profile. Tap your palate to see who you once were.'] },
   { v: '1.8.1', title: 'Small polish', notes: ['The Discover tab is now called Dictionary on the bottom bar. The page itself is still Discover.', 'Your palate name in Profile shows its italics properly.'] },
   { v: '1.8.0', title: 'New seals, a living palate and a steadier climb', notes: ['Eight new seals to earn: Spartan (300 words), Centurion (100-day streak), Argentum, Aurum and Adamant (25, 50 and 100 ascensions), Magna and Summa Cum Laude (5 and 10 Silver-Tongued cards), and Lucent, the grandest of all.', 'Earning a seal now lights up the whole screen, wherever you are. The rarer the seal, the grander the glow.', 'Your palate chart now sits in Profile and follows the words you keep, blending your first taste test with your Treasury.', 'Ascension: one card may rise each day. A new card takes its first trial the next day, rests 7 days after each climb, and waits 3 days after a lost trial.', 'Flawless now asks for 25 correct answers in a row, and Wordsmith counts only sentences the Sentence Judge accepts.'] },
@@ -937,21 +938,21 @@ function renderLexis() {
   const acc = stats.ok + stats.bad ? Math.round(stats.ok / (stats.ok + stats.bad) * 100) + '%' : '—';
   const sg = EXERCISES.find(x => x.id === suggestedEx()), si = EXERCISES.indexOf(sg);
   const romans = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+  const ab = arBest(), aw = arWorn() || ab;
   view.innerHTML = `<div class="micro" style="color:var(--acc)">Lexis</div><h1 class="big" style="margin-top:6px">The practice room.</h1>
-    <p class="serif it muted" style="font-size:17px;margin:6px 0 0">The best way to remember a word is to use it.</p>
+    <p class="serif it muted" style="font-size:17px;margin:6px 0 0">Two doors. One for the words you keep, one for every word there is.</p>
     <section class="strip"><div><b>${n}</b><span>words</span></div><div><b>${st}</b><span>day streak</span></div><div><b>${acc}</b><span>accuracy</span></div></section>
     ${ascSectionHTML()}
-    <div class="micro" style="margin:28px 0 12px">Suggested for today</div>
-    <button class="feat ex7" data-x="${sg.id}" style="${coverStyle(EX_LOOK[sg.id][0])}"><span class="spine"></span>
-      <span class="row" style="justify-content:space-between;align-items:flex-start;width:100%"><span class="ccount">${romans[si]} · ${sg.id === 'synonym' ? 'timed · ' : ''}up to 10 questions</span><span class="cicon big">${EX_ICON(sg.id).replace('width="18" height="18"', 'width="24" height="24"')}</span></span>
-      <span class="stack" style="gap:6px;text-align:left"><span class="cname" style="font-size:34px">${sg.n}</span><span class="cex" style="font-size:16px">${sg.d}</span></span>
-      <span class="fbegin">Begin ${ICON.arrow}</span></button>
-    <div class="micro" style="margin:28px 0 12px">All exercises</div>
+    <div class="doorhead"><div class="stack" style="gap:2px"><div class="micro" style="color:var(--ink2)">The Study</div><span class="serif it muted" style="font-size:16px">Practise the words you keep.</span></div><span class="muted" style="font-size:11px">${n ? `from your ${n} word${n > 1 ? 's' : ''}` : ''}</span></div>
     <div class="stack" style="gap:8px">${EXERCISES.map((x, i) => `<button class="spinebar ex7" data-x="${x.id}" style="${coverStyle(EX_LOOK[x.id][0])}"><span class="spine"></span><span class="snum">${romans[i]}</span>
-      <span class="stack" style="gap:2px;flex:1;min-width:0;text-align:left"><span class="sname">${x.n}</span><span class="sdesc">${x.short}</span></span>${x.id === 'synonym' ? '<span class="sbadge">Timed</span>' : ''}<span class="sicon">${EX_ICON(x.id)}</span></button>`).join('')}</div>
-    ${n < 1 ? '<p class="muted" style="font-size:13px;margin-top:16px">Keep at least one word in your Treasury to begin.</p>' : ''}
-    <p class="muted" style="font-size:12px;line-height:1.55;margin:20px 2px 0">These exercises are practice: they sharpen your memory but never level a card. A card rises only by passing its own Ascension Trial.</p>`;
+      <span class="stack" style="gap:2px;flex:1;min-width:0;text-align:left"><span class="sname">${x.n}</span><span class="sdesc">${x.short}</span></span>${x.id === sg.id ? '<span class="sbadge">Today</span>' : x.id === 'synonym' ? '<span class="sbadge">Timed</span>' : ''}<span class="sicon">${EX_ICON(x.id)}</span></button>`).join('')}</div>
+    ${n < 1 ? '<p class="muted" style="font-size:13px;margin-top:12px">Keep at least one word in your Treasury to open The Study.</p>' : '<p class="muted" style="font-size:12px;line-height:1.55;margin:12px 2px 0">Practice sharpens your memory but never levels a card. A card rises only by passing its own Ascension Trial.</p>'}
+    <section class="arenadoor"><div class="row" style="justify-content:space-between;align-items:flex-start"><div class="stack" style="gap:6px"><span class="ad-micro">The Arena</span><span class="ad-h">Every word.<br>Ten seconds.</span></div>${ARENA_MARK(58, '#D8BE84')}</div>
+      <p class="ad-sub">The whole dictionary against you. Earn your titles one ground at a time.</p>
+      ${aw ? `<div class="ad-cur"><div class="row" style="justify-content:space-between;align-items:baseline;gap:10px"><span class="ad-t">${esc(arTitle(aw.s, aw.lv))}</span><span class="ad-s">${esc(arShort(aw.s))} · Lv ${aw.lv}</span></div><span class="ar-bar"><i style="width:${aw.lv >= 10 ? 100 : (arena.xp[aw.s] || 0) % 100}%"></i></span><span class="ad-s">${aw.lv >= 10 ? 'Crowned on this ground' : `${100 - (arena.xp[aw.s] || 0) % 100} points to ${esc(arTitle(aw.s, aw.lv + 1))}`}</span></div>` : '<div class="ad-cur"><span class="ad-s">No titles yet. Your first is 100 points away.</span></div>'}
+      <button class="ar-gold" id="arenago">Enter the Arena ${ICON.arrow}</button></section>`;
   $$('.ascgo').forEach(b => b.onclick = () => ascendTrial(b.dataset.w, () => { if (tab === 'lexis') renderLexis(); }));
+  $('#arenago').onclick = () => openArena();
   $$('.ex7').forEach(b => b.onclick = () => { if (!n) { toast('Keep a word in your Treasury first.'); return; } stats.exUse = stats.exUse || {}; stats.exUse[b.dataset.x] = (stats.exUse[b.dataset.x] || 0) + 1; save.stats(); b.dataset.x === 'synonym' ? synonymSetup() : startEx(b.dataset.x); });
 }
 function ascSectionHTML() {
@@ -1519,6 +1520,198 @@ async function synonymGame(secs) {
   ask();
 }
 
+/* ---------- The Arena: every word in the dictionary, ten seconds each ---------- */
+const AR_SHELVES = ['All categories', 'Literary', 'Business', 'Legal', 'Medical', 'Science', 'Everyday', 'Ornate', 'Whimsical'];
+const AR_COL = { 'All categories': '#C9A45C', Literary: '#8A2B36', Business: '#2F5A44', Legal: '#2A3F63', Medical: '#2F6A6E', Science: '#4B4A8C', Everyday: '#9A7A4E', Ornate: '#A8812E', Whimsical: '#6E3B6E' };
+const AR_N = 10, AR_SECS = 10;
+let arena = store.get('arena', null) || { xp: {}, seen: {}, miss: {}, wear: null, auto: true, rounds: 0, right: 0, total: 0 };
+save.arena = () => store.set('arena', arena);
+const arLv = s => Math.min(10, Math.floor((arena.xp[s] || 0) / 100));
+const arTitle = (s, lv) => lv ? LX.ARENA_TITLES[s][lv - 1] : '';
+const arShort = s => s === 'All categories' ? 'All' : s;
+function arBest() { let b = null; for (const s of AR_SHELVES) { const l = arLv(s); if (l && (!b || l > b.lv)) b = { s, lv: l }; } return b; }
+function arWorn() { const w = arena.wear; return !arena.auto && w && arLv(w.s) >= w.lv ? w : arBest(); }
+const arEarned = () => AR_SHELVES.reduce((n, s) => n + arLv(s), 0);
+const ARENA_MARK = (size, col) => `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none" stroke="${col}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 50c-6-6-8-14-6-22M48 50c6-6 8-14 6-22"/><path d="M11 40c3 0 5 1 6 3M9 33c3 0 5 1 6 3M10 26c2 1 4 2 5 4M53 40c-3 0-5 1-6 3M55 33c-3 0-5 1-6 3M54 26c-2 1-4 2-5 4"/><path d="M20 16l24 30M44 16L20 46"/><path d="M18 14l3 1-1 3M46 14l-3 1 1 3"/><path d="M40 43l6 3-3-6M24 43l-6 3 3-6"/><circle cx="32" cy="31" r="2.2"/></svg>`;
+const Arena = { data: null, async load() { if (!this.data) this.data = await (await fetch('data/arena.json')).json(); return this.data; } };
+
+/* the words for one round: a window of the ground that climbs with your level, no recent repeats,
+   and a couple of words you missed earlier, back for a second try */
+function arPick(D, s, lv) {
+  const list = s === 'All categories' ? D.w.map((_, i) => i) : D.s[s];
+  const n = list.length, span = Math.min(n, Math.max(40, Math.round(n * 0.3)));
+  const start = Math.max(0, Math.min(n - span, Math.round(n * Math.min(0.7, lv * 0.07))));
+  const win = list.slice(start, start + span);
+  const seen = arena.seen[s] = (arena.seen[s] || []).filter(i => win.includes(i));
+  const recent = new Set(seen);
+  const miss = (arena.miss[s] || []).filter(m => arena.rounds - m[1] >= 2).map(m => m[0]);
+  const pick = shuffle(miss).slice(0, 2);
+  let fresh = shuffle(win.filter(i => !recent.has(i) && !pick.includes(i)));
+  if (fresh.length < AR_N) { arena.seen[s] = []; fresh = shuffle(win.filter(i => !pick.includes(i))); }
+  // never two words in one round that answer each other (giddy / dizzy)
+  const out = [], used = new Set();
+  for (const i of [...pick, ...fresh]) { if (out.length >= AR_N) break; const [w, a] = D.w[i]; if (used.has(w) || used.has(a)) continue; out.push(i); used.add(w); used.add(a); }
+  return shuffle(out);
+}
+/* four choices; the higher the level, the craftier the wrong ones (same part of speech, then look-alikes of similar rarity) */
+function arOptions(D, i, lv) {
+  const [w, ans, , pos, ex] = D.w[i], ban = new Set([w, ans, ...ex]), out = new Set(), N = D.w.length;
+  let g = 0;
+  while (out.size < 3 && g++ < 600) {
+    const j = lv >= 7 && g < 400 ? Math.max(0, Math.min(N - 1, i + Math.round((Math.random() - 0.5) * 600))) : Math.floor(Math.random() * N);
+    const o = D.w[j]; if (!o || j === i) continue;
+    const c = o[1];
+    if (ban.has(c) || out.has(c) || o[0] === ans || o[4].includes(w) || o[4].includes(ans) || c.includes(w) || w.includes(c)) continue;
+    if (lv >= 4 && g < 450 && o[3] !== pos) continue;
+    if (lv >= 8 && g < 300 && !(c[0] === ans[0] || Math.abs(c.length - ans.length) <= 1)) continue;
+    out.add(c);
+  }
+  return shuffle([ans, ...out]);
+}
+function arenaOverlay(html) {
+  const el = document.createElement('div'); el.className = 'overlay dark arena';
+  el.innerHTML = html; pushOverlay(el); return el;
+}
+async function openArena() {
+  const el = arenaOverlay(`<div class="ar-top"><button class="iconbtn" data-close aria-label="Back">${ICON.back}</button>${ARENA_MARK(34, '#D8BE84')}<span style="width:44px"></span></div><div class="ov-body ar-body"></div>`);
+  $('[data-close]', el).onclick = () => closeTop();
+  const draw = () => {
+    $('.ar-body', el).innerHTML = `<section class="ar-head"><div class="ar-micro">The Arena</div><h1 class="ar-h1">Choose your ground.</h1>
+      <p class="ar-sub">Ten words, ten seconds each. Every right answer is a point. A perfect round adds ten; a single slip, five.</p></section>
+      <div class="ar-grounds">${AR_SHELVES.map((s, k) => { const lv = arLv(s), xp = arena.xp[s] || 0;
+        return `<button class="ar-ground${k ? '' : ' all'}" data-s="${esc(s)}"><span class="ar-gs" style="background:${AR_COL[s]}"></span>
+        <span class="ar-gt"><span class="ar-gn">${esc(s)}</span><span class="ar-gti${lv ? '' : ' none'}">${lv ? esc(arTitle(s, lv)) : 'No title yet'}</span></span>
+        <span class="ar-glv"><span>${lv >= 10 ? 'Crowned' : 'Lv ' + lv + '/10'}</span><span class="ar-bar"><i style="width:${lv >= 10 ? 100 : xp % 100}%"></i></span></span></button>`; }).join('')}</div>`;
+    $$('.ar-ground', el).forEach(b => b.onclick = () => arenaRound(b.dataset.s, draw));
+  };
+  draw();
+  Arena.load().catch(() => { });
+}
+async function arenaRound(s, onBack) {
+  let D;
+  try { D = await Arena.load(); } catch { toast('The Arena’s words haven’t downloaded yet. Connect once and try again.'); return; }
+  exBusy++;
+  const lv = arLv(s), ids = arPick(D, s, lv);
+  const qs = ids.map(i => ({ i, w: D.w[i][0], ans: D.w[i][1], opts: arOptions(D, i, lv), ok: null }));
+  const el = arenaOverlay(`<div class="ar-top"><button class="iconbtn" id="arx" aria-label="Leave the round">${ICON.close}</button><span class="ar-micro" style="margin:0">${esc(arShort(s))} · Lv ${lv}</span><span class="ar-count" id="arc">1/${qs.length}</span></div>
+    <div class="ar-pips">${qs.map(() => '<i></i>').join('')}</div><div class="ar-q" id="arq"></div>`);
+  let qi = 0, right = 0, timer = null, finished = false;
+  const stop = () => { clearInterval(timer); timer = null; };
+  const leave = () => { stop(); if (!finished) { finished = true; arena.rounds++; const ups = right ? arAward(s, right) : []; save.arena(); endBusy(); ups.forEach(u => setTimeout(() => showTitle(u.s, u.lv, true), 400)); } };
+  $('#arx', el).onclick = () => { leave(); closeTop(); };
+  const ring = 2 * Math.PI * 38;
+  const ask = () => {
+    if (!document.body.contains(el)) { leave(); return; }
+    const q = qs[qi]; $('#arc', el).textContent = (qi + 1) + '/' + qs.length;
+    $('#arq', el).innerHTML = `<div class="ar-ring"><svg width="84" height="84" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38" class="tr"/><circle cx="42" cy="42" r="38" class="fg" id="arr" stroke-dasharray="${ring.toFixed(1)}" stroke-dashoffset="0" transform="rotate(-90 42 42)"/></svg><span id="art">${AR_SECS}</span></div>
+      <div class="ar-word"><span class="ar-micro dim">Closest in meaning</span><span class="ar-w" style="font-size:${q.w.length > 13 ? 38 : q.w.length > 10 ? 46 : 54}px">${esc(q.w)}</span></div>
+      <div class="ar-opts">${q.opts.map((o, k) => `<button class="ar-opt" data-k="${k}"><span class="ar-key">${'ABCD'[k]}</span><span class="ar-ot">${esc(o)}</span></button>`).join('')}</div>
+      <div class="ar-score" id="ars">Score so far · ${right} point${right === 1 ? '' : 's'}</div>`;
+    const t0 = Date.now(); let done = false;
+    const settle = (ok, b) => {
+      if (done) return; done = true; stop(); q.ok = ok;
+      $$('.ar-opt', el).forEach(x => { if (q.opts[+x.dataset.k] === q.ans) x.classList.add('ok'); });
+      if (b && !ok) b.classList.add('no');
+      const pip = $$('.ar-pips i', el)[qi]; pip.className = ok ? 'ok' : 'no';
+      if (ok) right++;
+      arena.total++; if (ok) arena.right++;
+      const m = arena.miss[s] = (arena.miss[s] || []).filter(x => x[0] !== q.i); if (!ok) m.push([q.i, arena.rounds]);
+      (arena.seen[s] = arena.seen[s] || []).push(q.i);
+      setTimeout(() => { qi++; qi < qs.length ? ask() : finish(); }, ok ? 650 : 1500);
+    };
+    timer = setInterval(() => {
+      if (!document.body.contains(el)) { leave(); return; }
+      const left = Math.max(0, AR_SECS - (Date.now() - t0) / 1000);
+      const r = $('#arr', el); if (r) { r.setAttribute('stroke-dashoffset', (ring * (1 - left / AR_SECS)).toFixed(1)); r.classList.toggle('low', left < 3); }
+      const t = $('#art', el); if (t) t.textContent = Math.ceil(left);
+      if (left <= 0) settle(false, null);
+    }, 100);
+    $$('.ar-opt', el).forEach(b => b.onclick = () => settle(q.opts[+b.dataset.k] === q.ans, b));
+  };
+  const finish = () => {
+    stop(); finished = true; arena.rounds++;
+    const miss = qs.length - right, bonus = miss === 0 ? 10 : miss === 1 ? 5 : 0, pts = right + bonus;
+    const before = arena.xp[s] || 0, lv0 = arLv(s);
+    const ups = arAward(s, pts);
+    const after = arena.xp[s] || 0, lv1 = arLv(s);
+    const head = right === qs.length ? 'Ten of ten.' : (['None', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][right] + ' of ten.');
+    const line = miss === 0 ? 'Flawless. The crowd is on its feet.' : miss === 1 ? 'One slip. Still sharper than most.' : right >= 7 ? 'A good showing. The next round is yours.' : right >= 4 ? 'The Arena is not kind. Go again.' : 'A humbling round. Even legends start here.';
+    const nextT = lv1 < 10 ? `${100 - after % 100} more to ${arTitle(s, lv1 + 1)}` : 'Crowned. The highest title is yours.';
+    const pBefore = lv1 > lv0 ? 0 : before % 100, pGain = lv1 >= 10 ? 100 - pBefore : (after % 100) - pBefore;
+    $('.ar-pips', el).remove(); $('#arc', el).textContent = ''; $('.ar-top .ar-micro', el).textContent = arShort(s) + ' · Lv ' + lv1;
+    $('#arq', el).className = 'ov-body ar-body';
+    $('#arq', el).innerHTML = `<section class="ar-head"><div class="ar-micro">Round complete</div>
+      <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 class="ar-h1">${head}</h1><span class="ar-pts">+${pts}</span></div>
+      <p class="ar-sub">${line} ${right} right${bonus ? `, plus ${bonus} for ${miss ? 'a single mistake' : 'a perfect round'}` : ''}.</p></section>
+      <section class="ar-prog"><div class="row" style="justify-content:space-between;font-size:12px"><span>${esc(arShort(s))} · Level ${lv1}</span><span class="dim">${lv1 >= 10 ? 'Crowned' : `${after % 100} / 100`}</span></div>
+        <div class="ar-bar big"><i style="width:${pBefore}%"></i><i class="gain" style="width:${Math.max(0, pGain)}%"></i></div><span class="dim" style="font-size:11px">${esc(nextT)}</span></section>
+      <p class="dim" style="font-size:11px;margin:16px 0 2px">Tap the ribbon to keep a word in your Treasury. Tap a word to look it up.</p>
+      <div class="ar-list">${qs.map(q => `<div class="ar-li"><span class="ar-ck ${q.ok ? 'ok' : 'no'}" aria-label="${q.ok ? 'Right' : 'Missed'}">${q.ok ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>' : ICON.close}</span>
+        <button class="ar-lw" data-w="${esc(q.w)}">${esc(q.w)} <i>· ${esc(q.ans)}</i></button>
+        <button class="ar-keep${inT(q.w) ? ' on' : ''}" data-w="${esc(q.w)}" aria-label="Keep ${esc(q.w)} in your Treasury">${inT(q.w) ? ICON.markOn : ICON.mark}</button></div>`).join('')}</div>
+      <div class="ar-btns"><button class="ar-gold" id="aragain">Another round</button><button class="ar-ghost" id="arback">Change ground</button></div>`;
+    $$('.ar-keep', el).forEach(b => b.onclick = () => { const w = b.dataset.w; if (inT(w)) { unkeep(w); b.classList.remove('on'); b.innerHTML = ICON.mark; } else { keep(w); b.classList.add('on'); b.innerHTML = ICON.markOn; } });
+    $$('.ar-lw', el).forEach(b => b.onclick = () => openWord(b.dataset.w));
+    $('#aragain', el).onclick = () => { closeTop(); setTimeout(() => arenaRound(s, onBack), 60); };
+    $('#arback', el).onclick = () => { closeTop(); onBack && onBack(); };
+    $('#arx', el).onclick = () => { closeTop(); onBack && onBack(); };
+    $('#arx', el).setAttribute('aria-label', 'Close');
+    endBusy();
+    ups.forEach((u, k) => setTimeout(() => showTitle(u.s, u.lv, true), 700 + k * 50));
+  };
+  ask();
+}
+/* add points; returns the titles newly earned */
+function arAward(s, pts) {
+  const lv0 = arLv(s); arena.xp[s] = Math.min(1000, (arena.xp[s] || 0) + pts); save.arena();
+  const ups = []; for (let l = lv0 + 1; l <= arLv(s); l++) ups.push({ s, lv: l });
+  return ups;
+}
+const titleQ = []; let titleShowing = false;
+function showTitle(s, lv, fresh) {
+  if (fresh) { titleQ.push({ s, lv }); if (titleShowing) return; }
+  const t = fresh ? titleQ[0] : { s, lv }; if (!t) return;
+  if (fresh) titleShowing = true;
+  const el = document.createElement('div'); el.className = 'titlepop'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Title earned');
+  const next = t.lv < 10 ? `Next: ${arTitle(t.s, t.lv + 1)}.` : 'The highest title of this ground.';
+  const worn = arWorn(), wearing = worn && worn.s === t.s && worn.lv === t.lv && !arena.auto;
+  el.innerHTML = `<button class="sp-x" id="tpx" aria-label="Close">${ICON.close}</button>
+    <div class="tp-stage"><div class="tp-glow${t.lv >= 10 ? ' crown' : ''}"></div><div class="tp-medal">${ARENA_MARK(84, '#D8BE84')}</div></div>
+    <div class="tp-text"><div class="tp-tier">${fresh ? 'Title earned' : 'Title'} · ${esc(arShort(t.s))} · Level ${t.lv}</div>
+      <div class="tp-name">${esc(arTitle(t.s, t.lv))}</div>
+      <div class="tp-desc">Level ${t.lv} of 10.${t.lv < 10 ? ' The words get harder from here.' : ''}<br>${esc(next)}</div>
+      <button class="ar-gold" id="tpwear">${wearing ? 'Wearing this title' : 'Wear this title'}</button>
+      <button class="ar-ghost plain" id="tpno">${fresh ? 'Not now' : 'Close'}</button></div>`;
+  const close = () => closeTop();
+  $('#tpx', el).onclick = close; $('#tpno', el).onclick = close;
+  $('#tpwear', el).onclick = () => { arena.wear = { s: t.s, lv: t.lv }; arena.auto = false; save.arena(); toast('You now wear “' + arTitle(t.s, t.lv) + '”'); close(); if (tab === 'profile') renderProfile(); };
+  pushOverlay(el, () => { if (fresh) { titleQ.shift(); titleShowing = false; if (titleQ.length) { const n = titleQ.shift(); setTimeout(() => showTitle(n.s, n.lv, true), 250); } } });
+  if (fresh && navigator.vibrate) { try { navigator.vibrate(t.lv >= 10 ? [30, 60, 30, 60, 120] : [20, 40, 30]); } catch { } }
+}
+/* a sheet that slides up from the bottom */
+function sheet(html) {
+  const el = document.createElement('div'); el.className = 'sheetwrap';
+  el.innerHTML = `<div class="sheet-bg" data-close></div><section class="sheet" role="dialog"><span class="sheet-grip"></span>${html}</section>`;
+  $('.sheet-bg', el).onclick = () => closeTop();
+  pushOverlay(el); return el;
+}
+function chooseTitle() {
+  const all = []; AR_SHELVES.forEach(s => { for (let l = arLv(s); l >= 1; l--) all.push({ s, lv: l }); });
+  all.sort((a, b) => b.lv - a.lv);
+  const w = arWorn();
+  const el = sheet(`<div class="micro" style="color:var(--acc)">Wear a title</div><h2 class="sheet-h">Who shall you be today?</h2>
+    <button class="sheet-auto" id="tauto" role="switch" aria-checked="${arena.auto ? 'true' : 'false'}"><span class="stack" style="gap:1px;text-align:left"><span style="font-size:14px;font-weight:500">Let Lucent choose my best</span><span class="muted" style="font-size:11px">Your highest title, updated as you climb</span></span><span class="sw${arena.auto ? ' on' : ''}"><i></i></span></button>
+    <div class="sheet-list">${all.map(x => `<button class="sheet-opt" data-s="${esc(x.s)}" data-l="${x.lv}"><span class="radio${!arena.auto && w && w.s === x.s && w.lv === x.lv ? ' on' : ''}"></span><span class="stack" style="gap:0;text-align:left"><span class="serif" style="font-size:19px">${esc(arTitle(x.s, x.lv))}</span><span class="muted" style="font-size:11px">${esc(x.s)} · Level ${x.lv}</span></span></button>`).join('')}</div>`);
+  $('#tauto', el).onclick = () => { arena.auto = !arena.auto; save.arena(); closeTop(); renderProfile(); };
+  $$('.sheet-opt', el).forEach(b => b.onclick = () => { arena.wear = { s: b.dataset.s, lv: +b.dataset.l }; arena.auto = false; save.arena(); closeTop(); renderProfile(); });
+}
+function titleLadder(s) {
+  const lv = arLv(s), xp = arena.xp[s] || 0;
+  sheet(`<div class="micro" style="color:var(--acc)">${esc(s)} · ${lv >= 10 ? 'Crowned' : 'Level ' + lv + ' of 10'}</div><h2 class="sheet-h">${lv ? esc(arTitle(s, lv)) : 'No title yet'}</h2>
+    <p class="muted" style="font-size:12px;margin:0 0 6px">${lv >= 10 ? 'Every title on this ground is yours.' : `${100 - xp % 100} points to the next title. Play this ground in The Arena.`}</p>
+    <ol class="ladder">${LX.ARENA_TITLES[s].map((t, k) => `<li class="${k < lv ? 'on' : ''}${k === 9 ? ' crown' : ''}"><span>${k + 1}</span><span>${k < lv ? esc(t) : k === lv ? esc(t) : '· · ·'}</span></li>`).join('')}</ol>`);
+}
+
 /* ---------- profile ---------- */
 function avatarHTML(size) {
   const n = (profile && profile.name || '?').trim();
@@ -1532,10 +1725,13 @@ function renderProfile() {
   const off = store.get('offline3', { done: 0, total: 0 });
   view.innerHTML = `
     <section class="row" style="gap:16px">${avatarHTML(72)}<div class="stack" style="gap:2px;min-width:0"><div class="serif" style="font-size:32px;font-weight:500;line-height:1.05;overflow:hidden;text-overflow:ellipsis">${esc(profile.name)}</div>
-      <div class="serif it" style="font-size:16px;color:var(--acc)">${rk.name} · rank ${rk.i + 1} of 5</div></div>
+      <div class="serif it" style="font-size:16px;color:var(--acc)">${rk.name} · rank ${rk.i + 1} of 5</div>
+      ${(() => { const w = arWorn(); return w ? `<button class="tpill" id="tpill"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l2 3.2L10 5 7 6.8 5 10 3 6.8 0 5l3-1.8z" fill="currentColor"/></svg><span>${esc(arTitle(w.s, w.lv))}</span>${ICON.next}</button>` : ''; })()}</div>
       <button class="iconbtn" id="edit" style="margin-left:auto" aria-label="Edit profile">${ICON.edit}</button></section>
     <section class="stats" style="margin-top:18px"><div><b>${tw.length}</b><span>words kept</span></div><div><b>${streak()}</b><span>day streak</span></div><div><b>${acc}</b><span>accuracy</span></div></section>
     ${rk.next ? `<p class="muted" style="font-size:12px;margin:10px 0 0">${rk.next - rk.score} lexicon points to ${LX.RANKS[rk.i + 1]}. Each card earns points as it ascends.</p>` : ''}
+    <section class="sec"><div class="row" style="justify-content:space-between;align-items:baseline"><div class="micro">Titles · ${arEarned()} earned</div><span class="muted" style="font-size:11px">from The Arena</span></div>
+      <div class="ttiles">${AR_SHELVES.map(s => { const lv = arLv(s); return `<button class="ttile" data-s="${esc(s)}"><span class="tt-n">${esc(arShort(s))}</span><span class="tt-l${lv ? '' : ' none'}">${lv >= 10 ? 'Crowned' : 'Lv ' + lv}</span><span class="ar-bar light"><i style="width:${lv >= 10 ? 100 : (arena.xp[s] || 0) % 100}%;background:${AR_COL[s]}"></i></span></button>`; }).join('')}</div></section>
     <section class="sec"><div class="micro">Your collection</div>
       <div class="collbar">${tw.length ? counts.map((n, i) => n ? `<span style="flex-grow:${n};background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></span>` : '').join('') : ''}</div>
       <div class="legend">${LX.CARD_LEVELS.map((l, i) => `<div><i style="background:${FIN[i][0]};box-shadow:inset 0 0 0 1px ${FIN[i][1]}"></i><span>${l.n}</span><b>${counts[i]}</b></div>`).join('')}</div></section>
@@ -1555,6 +1751,8 @@ function renderProfile() {
       <button class="setrow" id="ab"><span>About Lucent</span><span>v${VERSION}</span></button>
       <input type="file" id="rsf" accept="application/json,.json" class="hidden"></section>`;
   $('#edit').onclick = editProfile;
+  const tp = $('#tpill'); if (tp) tp.onclick = chooseTitle;
+  $$('.ttile').forEach(b => b.onclick = () => titleLadder(b.dataset.s));
   $$('.seal').forEach(b => b.onclick = () => showSeal(b.dataset.s, false));
   let palLive = null;
   const pal = $('#pal'); if (pal) pal.onclick = () => { const P = profile.palate; if (P.shifted) { P.shifted = 0; save.profile(); const s = $('#palshift'); if (s) s.classList.add('hidden'); }
@@ -1850,12 +2048,14 @@ async function startOfflineDownload(force) {
   if (o.total && o.done >= o.total && !force) return;
   try {
     const idx = await Dict.index();
-    const urls = ['data/words.json', 'data/pool.json', 'data/dict/index.json', ...idx.map(x => 'data/dict/' + x[1])];
+    const urls = ['data/words.json', 'data/pool.json', 'data/arena.json', 'data/dict/index.json', ...idx.map(x => 'data/dict/' + x[1])];
     const reg = await navigator.serviceWorker.ready;
     store.set('offline3', { done: o.done || 0, total: urls.length });
     reg.active && reg.active.postMessage({ type: 'download', key: 'dict', urls, cache: 'lucent-dict-v3' });
   } catch { }
 }
+/* keep The Arena's words on the phone for offline play (fetched once, quietly, without loading them into memory) */
+if (!store.get('arenaWarm', 0)) setTimeout(() => { if (navigator.onLine) fetch('data/arena.json').then(r => r.ok && r.blob()).then(b => b && store.set('arenaWarm', 1)).catch(() => { }); }, 9000);
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', ev => {
     const m = ev.data || {};
